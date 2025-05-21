@@ -92,7 +92,7 @@ def spongebob_filter(record: models.AppBskyFeedPost.Record, created_post: dict) 
             continue
         logger.debug(f"  spongebob_filter: Checking word: '{word}'")
         if _alt_span(word, True) or _alt_span(word, False):
-            logger.info(
+            logger.debug(
                 f"spongebob_filter: Word '{word}' IS Spongebob case. Returning True."
             )
             return True
