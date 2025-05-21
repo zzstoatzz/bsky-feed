@@ -90,7 +90,7 @@ def operations_callback(ops: defaultdict) -> None:
             "cid": created_post["cid"],
             "reply_parent": reply_parent,
             "reply_root": reply_root,
-            "text": record.text,  # Text included for potential logging
+            "text": record.text,  # TODO: Remove text before saving to DB, as it's not in the model
         }
         posts_to_create.append(post_dict)
 
@@ -101,24 +101,18 @@ def operations_callback(ops: defaultdict) -> None:
         logger.debug(f"Deleted from feed: {len(post_uris_to_delete)}")
 
     if posts_to_create:
-        logger.info(
-            f"Adding {len(posts_to_create)} posts to feed (based on custom filter if configured)."
-        )
-        for post_dict_to_log in posts_to_create:  # Use a different variable name to avoid confusion with the loop variable for DB insert
-            # This is where text was logged in the original Spongebob implementation
-            # The user wants to retain this capability.
-            text_to_log = post_dict_to_log.get(
-                "text", "<Text not available>"
-            )  # Safely get text
-            logger.info(f"Post: {post_dict_to_log['uri']}")
-            logger.info(f"Text: {text_to_log}")
-            logger.info("---")
+        logger.debug(f"Adding {len(posts_to_create)} posts to feed.")
+        for post_dict_to_log in posts_to_create:
+            logger.info(
+                f"Post: {post_dict_to_log['uri']} with text: {
+                    post_dict_to_log.get('text', '<Text not available>')
+                }"
+            )
 
         with db.atomic():
             for post_dict_for_db in posts_to_create:
-                # Create a copy for DB operation to pop text
                 db_insert_dict = post_dict_for_db.copy()
                 db_insert_dict.pop(
                     "text"
-                )  # Remove text before saving to DB, as it's not in the model
+                )  # TODO: Remove text before saving to DB, as it's not in the model
                 Post.create(**db_insert_dict)

@@ -5,13 +5,15 @@
 git clone https://github.com/n8n1/bsky-feed.git
 ```
 
-1. copy `.env.example` to `.env` and set the variables
+1. copy `.env.example` to `.env` and set variables (except `FEED_URI`)
 
-2. implement `example_custom_filters.py` to customize your feed
+2. run `just publish` to publish the feed, which gives the `FEED_URI` and that you copy into `.env`
 
-3. run `just docker-test` to test the docker image with your .env file
+3. implement `example_custom_filters.py` to customize your feed
 
-4. run `just deploy` to deploy the app to fly.io
+4. run `just docker-test` to test the docker image with your .env file
+
+5. run `just deploy` to deploy the app to fly.io
 
 
 <details>
