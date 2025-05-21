@@ -1,3 +1,23 @@
+# deploy a bsky feed on fly.io
+
+0. clone the repo
+```
+git clone https://github.com/n8n1/bsky-feed.git
+```
+
+1. copy `.env.example` to `.env` and set the variables
+
+2. implement `example_custom_filters.py` to customize your feed
+
+3. run `just docker-test` to test the docker image with your .env file
+
+4. run `just deploy` to deploy the app to fly.io
+
+
+
+<details>
+<summary>original template documentation</summary>
+
 # ATProto Feed Generator powered by [The AT Protocol SDK for Python](https://github.com/MarshalX/atproto)
 
 > Feed Generators are services that provide custom algorithms to users through the AT Protocol.
@@ -68,3 +88,7 @@ flask --debug run
 ## License
 
 MIT
+
+
+
+</details>
