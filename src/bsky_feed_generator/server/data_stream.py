@@ -109,6 +109,15 @@ def _run(name, operations_callback, stream_stop_event=None):
         )
         if not commit.blocks:
             return
-        operations_callback(_get_ops_by_type(commit))
+        try:
+            operations_callback(_get_ops_by_type(commit))
+        except Exception as e:
+            logger.error(
+                f"CRITICAL ERROR during operations_callback for commit seq {commit.seq}, repo {commit.repo}: {e}",
+                exc_info=True,
+            )
+            # Optionally, re-raise or stop the client if errors are too frequent or severe
+            # For now, logging the full traceback and continuing might allow us to see the problematic data
+            # client.stop() # to stop the firehose on error
 
     client.start(on_message_handler)
