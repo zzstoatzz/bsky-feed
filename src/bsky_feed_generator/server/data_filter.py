@@ -22,7 +22,7 @@ def is_archive_post(record: "models.AppBskyFeedPost.Record") -> bool:
 
     archived_threshold = datetime.timedelta(days=1)
     created_at = datetime.datetime.fromisoformat(record.created_at)
-    now = datetime.datetime.now(datetime.UTC)
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     return now - created_at > archived_threshold
 
@@ -54,17 +54,20 @@ def operations_callback(ops: defaultdict) -> None:
         post_passes_custom_filter = False
 
         if settings.CUSTOM_FILTER_FUNCTION:
+            custom_filter_function = settings.CUSTOM_FILTER_FUNCTION
+            assert custom_filter_function is not None
+            function_name = custom_filter_function.__name__ or "unknown"
             try:
-                if settings.CUSTOM_FILTER_FUNCTION(record, created_post):
+                if custom_filter_function(record, created_post):
                     post_passes_custom_filter = True
                 else:
                     logger.debug(
-                        f"Post {created_post['uri']} excluded by custom filter: {settings.CUSTOM_FILTER_FUNCTION.__name__}"
+                        f"Post {created_post['uri']} excluded by custom filter: {function_name}"
                     )
                     continue
             except Exception as e:
                 logger.error(
-                    f"Error executing custom filter {settings.CUSTOM_FILTER_FUNCTION.__name__} for post {created_post['uri']}: {e}"
+                    f"Error executing custom filter {function_name} for post {created_post['uri']}: {e}"
                 )
                 continue  # Skip post if custom filter errors
         else:

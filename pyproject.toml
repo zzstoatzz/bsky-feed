@@ -18,7 +18,7 @@ dependencies = [
 bsky_feed_generator = "bsky_feed_generator.server.run_server:main"
 
 [dependency-groups]
-dev = ["pytest-asyncio", "pytest-sugar", "ruff", "pyright"]
+dev = ["pytest-asyncio", "pytest-sugar", "ruff", "pyright", "ty"]
 
 [build-system]
 requires = ["hatchling", "hatch-fancy-pypi-readme>=22.5.0"]
@@ -38,6 +38,9 @@ asyncio_default_fixture_loop_scope = "session"
 [tool.ruff]
 extend-select = ["I", "UP"]
 target-version = "py310"
+
+[tool.ty.src]
+root = "./src"
 
 [tool.pyright]
 mode = "basic"

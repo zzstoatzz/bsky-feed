@@ -3,6 +3,11 @@ run:
     @echo "Starting server with Waitress on http://0.0.0.0:8080..."
     uv run waitress-serve --listen=0.0.0.0:8080 bsky_feed_generator.server.app:app
 
+# run the type checker
+typecheck:
+    @echo "Running type checker..."
+    uv run ty check
+
 # run the tests
 test:
     @echo "Running tests with pytest..."
@@ -20,5 +25,6 @@ docker-test:
     docker build . -t bsky-feed-generator
     docker run --rm --env-file .env bsky-feed-generator
 
+# deploy the app to fly.io
 deploy:
     fly deploy

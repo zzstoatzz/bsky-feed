@@ -6,13 +6,11 @@ from unittest.mock import patch
 import pytest
 from atproto_client import models
 
-# Import the example filter directly for use in tests
-from example_custom_filters import spongebob_filter as example_spongebob_filter
-
-# Assuming settings and operations_callback are accessible for testing
-# This might require adjusting imports based on your project structure
-from src.bsky_feed_generator.server import config
-from src.bsky_feed_generator.server.data_filter import operations_callback
+from bsky_feed_generator.server import config
+from bsky_feed_generator.server.data_filter import operations_callback
+from example_custom_filters import (  # type: ignore
+    spongebob_filter as example_spongebob_filter,
+)
 
 # Define Spongebob test cases (can be reused or adapted)
 POSITIVE_SPONGEBOB_TEXT = [
@@ -70,17 +68,14 @@ def _create_mock_post(
             ),
         )
 
-    record_data = {
-        "text": text if text is not None else "",
-        "created_at": (
-            datetime.datetime.now(datetime.UTC)
+    record_instance = models.AppBskyFeedPost.Record(
+        text=text if text is not None else "",
+        created_at=(
+            datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(days=2 if is_archived else 0)
         ).isoformat(),
-        "reply": reply_ref_obj,  # Assign the constructed ReplyRef object or None
-        "$type": "app.bsky.feed.post",
-    }
-
-    record_instance = models.AppBskyFeedPost.Record(**record_data)
+        reply=reply_ref_obj,
+    )
 
     return {
         "uri": uri,
