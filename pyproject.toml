@@ -1,0 +1,43 @@
+[project]
+name = "spongemock-bsky-feed-generator"
+version = "0.0.1"
+description = "generates a feed of posts containing SpOnGeMoCk text"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+dependencies = [
+    "peewee~=3.16.2",
+    "Flask~=2.3.2",
+    "pydantic-settings~=2.9.1",
+    "waitress~=2.1.2",
+    "atproto @ git+https://github.com/MarshalX/atproto.git@refs/pull/605/head",
+]
+
+[project.scripts]
+spongemock_bsky_feed_generator = "spongemock_bsky_feed_generator.server.run_server:main"
+
+[dependency-groups]
+dev = ["pytest-asyncio", "pytest-sugar", "ruff", "pyright"]
+
+[build-system]
+requires = ["hatchling", "hatch-fancy-pypi-readme>=22.5.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+
+[tool.ruff]
+extend-select = ["I", "UP"]
+target-version = "py310"
+
+[tool.pyright]
+mode = "basic"
