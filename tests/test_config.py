@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 # Assuming your Settings class is in this path
 # Adjust the import path if your project structure is different
-from spongemock_bsky_feed_generator.server.config import Settings
+from bsky_feed_generator.server.config import Settings
 
 
 def test_hostname_strips_single_quotes(monkeypatch):

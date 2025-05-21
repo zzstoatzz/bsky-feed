@@ -4,10 +4,10 @@ import threading
 
 from flask import Flask, jsonify, request
 
-from spongemock_bsky_feed_generator.server import data_stream
-from spongemock_bsky_feed_generator.server.algos import algos
-from spongemock_bsky_feed_generator.server.config import settings
-from spongemock_bsky_feed_generator.server.data_filter import operations_callback
+from bsky_feed_generator.server import data_stream
+from bsky_feed_generator.server.algos import algos
+from bsky_feed_generator.server.config import settings
+from bsky_feed_generator.server.data_filter import operations_callback
 
 app = Flask(__name__)
 

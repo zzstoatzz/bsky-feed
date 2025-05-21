@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from atproto_client.models.string_formats import AtUri, Handle, RecordKey
-from pydantic import Field, IPvAnyAddress, SecretStr, field_validator
+from pydantic import Field, ImportString, IPvAnyAddress, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,29 +23,33 @@ class Settings(BaseSettings):
     )
     FEED_URI: AtUri | None = None  # Server needs this set; publisher outputs it.
 
-    # --- Optional Server Settings with Defaults (env vars are uppercase) ---
-    # Pydantic will match these case-insensitively, but we define them as uppercase for clarity
+    # --- Optional Server Settings with Defaults ---
     SERVICE_DID: str | None = None
     LISTEN_HOST: IPvAnyAddress = IPv4Address("0.0.0.0")
     LISTEN_PORT: int = 8080
     LOG_LEVEL: str = "INFO"
 
-    # --- Feed Behavior Settings (Server, env vars are uppercase) ---
+    # --- Feed Behavior Settings ---
     IGNORE_ARCHIVED_POSTS: bool = False
     IGNORE_REPLY_POSTS: bool = False
+    CUSTOM_FILTER_FUNCTION: ImportString | None = Field(
+        default=None,
+        description="Optional path to a custom filter function (e.g., 'my_module.my_filter_func') to decide post inclusion. The function should accept (record, created_post) and return bool.",
+    )
 
-    # --- Settings for publishing script (env vars are uppercase) ---
-    RECORD_NAME: RecordKey = "spongemock"  # Default record name for the feed
-    DISPLAY_NAME: str = "SpOnGeMoCk"  # Default display name for the feed
+    # --- Settings for publishing script ---
+    RECORD_NAME: RecordKey = Field(default=..., description="record name of the feed")
+    DISPLAY_NAME: str = Field(default=..., description="display name of the feed")
     FEED_DESCRIPTION: str | None = Field(
         default=None, description="description of the feed"
     )
     AVATAR_PATH: Path | None = Field(
         default=None, description="path to an image file for the feed avatar"
     )
-    FEED_URI_OUTPUT_FILE: Path = Path(
-        ".bsky_feed_uri"
-    )  # File where publish_feed.py saves the URI
+    FEED_URI_OUTPUT_FILE: Path = Field(
+        default_factory=lambda: Path(".bsky_feed_uri"),
+        description="path to a file where the feed URI will be saved",
+    )
 
     # Optional: For features like accepting interactions or video feeds, if needed by publisher
     ACCEPTS_INTERACTIONS: bool = False
@@ -99,3 +103,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.CUSTOM_FILTER_FUNCTION:
+    print(f"INFO: Loading custom filter function: {settings.CUSTOM_FILTER_FUNCTION}")

@@ -14,7 +14,7 @@ DATABASE_URI = "/data/feed_database.db"
 # Explicitly define the command to run the application using waitress for the 'app' process.
 # This overrides the CMD in the Dockerfile.
 [processes]
-app = "uv run spongemock_bsky_feed_generator"
+app = "uv run bsky_feed_generator"
 
 [http_service]
 internal_port = 8080

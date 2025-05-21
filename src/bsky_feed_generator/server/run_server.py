@@ -1,7 +1,7 @@
 from waitress import serve
 
-from spongemock_bsky_feed_generator.server.app import app
-from spongemock_bsky_feed_generator.server.config import settings
+from bsky_feed_generator.server.app import app
+from bsky_feed_generator.server.config import settings
 
 
 def main():

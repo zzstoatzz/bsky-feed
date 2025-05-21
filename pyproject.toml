@@ -1,7 +1,7 @@
 [project]
-name = "spongemock-bsky-feed-generator"
+name = "bsky-feed-generator"
 version = "0.0.1"
-description = "generates a feed of posts containing SpOnGeMoCk text"
+description = "a flask server that generates a custom feed of posts"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.scripts]
-spongemock_bsky_feed_generator = "spongemock_bsky_feed_generator.server.run_server:main"
+bsky_feed_generator = "bsky_feed_generator.server.run_server:main"
 
 [dependency-groups]
 dev = ["pytest-asyncio", "pytest-sugar", "ruff", "pyright"]

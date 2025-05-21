@@ -11,8 +11,8 @@ from atproto import (
 )
 from atproto.exceptions import FirehoseError
 
-from spongemock_bsky_feed_generator.server.database import SubscriptionState
-from spongemock_bsky_feed_generator.server.logger import logger
+from bsky_feed_generator.server.database import SubscriptionState
+from bsky_feed_generator.server.logger import logger
 
 _INTERESTED_RECORDS = {
     models.AppBskyFeedLike: models.ids.AppBskyFeedLike,

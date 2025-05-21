@@ -1,17 +1,14 @@
 from datetime import datetime
-from typing import Optional
 
-from spongemock_bsky_feed_generator.server.config import settings
-from spongemock_bsky_feed_generator.server.database import Post
+from bsky_feed_generator.server.config import settings
+from bsky_feed_generator.server.database import Post
 
-# FEED_URI can be None if not set in env, algo should handle this gracefully
 uri = settings.FEED_URI
 CURSOR_EOF = "eof"
 
 
 def handler(cursor: str | None, limit: int) -> dict:
-    if not uri:  # Check if FEED_URI is configured
-        # Or raise an error, or return empty feed with specific cursor indicating misconfiguration
+    if not uri:
         return {"cursor": CURSOR_EOF, "feed": []}
 
     posts = (
@@ -31,8 +28,8 @@ def handler(cursor: str | None, limit: int) -> dict:
         indexed_at, cid = cursor_parts
         indexed_at = datetime.fromtimestamp(int(indexed_at) / 1000)
         posts = posts.where(
-            ((Post.indexed_at == indexed_at) & (Post.cid < cid))  # type: ignore[operator]
-            | (Post.indexed_at < indexed_at)  # type: ignore[operator]
+            ((Post.indexed_at == indexed_at) & (Post.cid < cid))  # type: ignore
+            | (Post.indexed_at < indexed_at)  # type: ignore
         )
 
     feed = [{"post": post.uri} for post in posts]
