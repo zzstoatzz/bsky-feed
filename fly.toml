@@ -8,6 +8,9 @@ primary_region = 'ord'
 
 [build]
 
+[env]
+DATABASE_URI = "/data/feed_database.db"
+
 # Explicitly define the command to run the application using waitress for the 'app' process.
 # This overrides the CMD in the Dockerfile.
 [processes]
