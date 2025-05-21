@@ -14,7 +14,6 @@ git clone https://github.com/n8n1/bsky-feed.git
 4. run `just deploy` to deploy the app to fly.io
 
 
-
 <details>
 <summary>original template documentation</summary>
 

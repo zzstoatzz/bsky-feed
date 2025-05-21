@@ -24,6 +24,9 @@ POSITIVE_SPONGEBOB_TEXT = [
     "tEsTiNg NoRmAl WoRd",
     "NoRmAl WoRd tEsTiNg",
     "This is a NoRmAlTeXt",
+    "tEsTiNg #hashtag",
+    "#hashtag tEsTiNg",
+    "tEsTiNg #hashtag mOrEtExT",
 ]
 
 NEGATIVE_SPONGEBOB_TEXT = [
@@ -42,6 +45,10 @@ NEGATIVE_SPONGEBOB_TEXT = [
     "normal text",
     "",  # Empty string
     None,  # None text
+    "#tEsTiNg",
+    "normal text #tEsTiNg",
+    "#tEsTiNg normal text",
+    "before #tEsTiNg after",
 ]
 
 

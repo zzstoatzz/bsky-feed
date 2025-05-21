@@ -11,7 +11,7 @@ test:
 # publish the feed
 publish:
     @echo "Publishing feed..."
-    uv run python src/bsky_feed_generator/publish_feed.py
+    PYTHONPATH=. uv run python src/bsky_feed_generator/publish_feed.py
 
 
 # run the docker image with .env file

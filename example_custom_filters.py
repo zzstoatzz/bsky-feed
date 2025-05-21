@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 MIN_SPONGEBOB_LEN = 7
 URL_RE = re.compile(r"https?://\S+|www\.\S+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/\S+")
+HASHTAG_RE = re.compile(r"#\w+")
 
 
 def _alt_span(s: str, lower_first: bool) -> bool:
@@ -81,7 +82,12 @@ def spongebob_filter(record: models.AppBskyFeedPost.Record, created_post: dict) 
     text_without_urls = URL_RE.sub("", text)
     logger.debug(f"  spongebob_filter: Text without URLs: '{text_without_urls}'")
 
-    for word in text_without_urls.split():
+    text_without_hashtags_or_urls = HASHTAG_RE.sub("", text_without_urls)
+    logger.debug(
+        f"  spongebob_filter: Text without URLs or hashtags: '{text_without_hashtags_or_urls}'"
+    )
+
+    for word in text_without_hashtags_or_urls.split():
         if not word:
             continue
         logger.debug(f"  spongebob_filter: Checking word: '{word}'")
