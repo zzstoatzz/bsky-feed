@@ -35,6 +35,5 @@ class SubscriptionState(BaseModel):
     cursor = peewee.BigIntegerField()
 
 
-# Unconditionally connect and create tables
 db.connect(reuse_if_open=True)  # Added reuse_if_open for safety
 db.create_tables([Post, SubscriptionState], safe=True)

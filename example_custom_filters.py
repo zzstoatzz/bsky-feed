@@ -1,10 +1,8 @@
-import logging
 import re
 
 from atproto import models
 
-logger = logging.getLogger(__name__)
-
+from bsky_feed_generator.server.logger import logger
 
 MIN_SPONGEBOB_LEN = 7
 URL_RE = re.compile(r"https?://\S+|www\.\S+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/\S+")

@@ -1,4 +1,4 @@
-import logging
+import time
 from collections import defaultdict
 
 from atproto import (
@@ -67,9 +67,28 @@ def run(name, operations_callback, stream_stop_event=None):
         try:
             _run(name, operations_callback, stream_stop_event)
         except FirehoseError as e:
-            if logger.level == logging.DEBUG:
-                raise e
-            logger.error(f"Firehose error: {e}. Reconnecting to the firehose.")
+            # Always log the full error when it occurs, then attempt reconnect
+            logger.error(
+                f"Firehose error encountered: {e}. Attempting to reconnect...",
+                exc_info=True,
+            )
+            # Add a small delay before retrying to prevent rapid-fire reconnection attempts on persistent issues
+            if stream_stop_event:
+                stream_stop_event.wait(
+                    5
+                )  # Wait 5 seconds before retrying, if stop_event is available
+            else:
+                time.sleep(5)
+        except Exception as e:
+            # Catch any other unexpected errors from _run to prevent the run loop from crashing
+            logger.error(
+                f"Unexpected critical error in firehose _run loop: {e}. Attempting to reconnect...",
+                exc_info=True,
+            )
+            if stream_stop_event:
+                stream_stop_event.wait(5)
+            else:
+                time.sleep(5)
 
 
 def _run(name, operations_callback, stream_stop_event=None):
