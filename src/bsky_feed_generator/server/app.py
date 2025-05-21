@@ -39,20 +39,20 @@ def index():
 
 @app.route("/.well-known/did.json", methods=["GET"])
 def did_json():
-    if not settings.SERVICE_DID or not settings.SERVICE_DID.endswith(
-        str(settings.HOSTNAME)
-    ):
+    service_did = settings.SERVICE_DID
+    hostname = settings.HOSTNAME
+    if not service_did or not service_did.endswith(str(hostname)):
         return "", 404
 
     return jsonify(
         {
             "@context": ["https://www.w3.org/ns/did/v1"],
-            "id": settings.SERVICE_DID,
+            "id": service_did,
             "service": [
                 {
                     "id": "#bsky_fg",
                     "type": "BskyFeedGenerator",
-                    "serviceEndpoint": f"https://{settings.HOSTNAME}",
+                    "serviceEndpoint": f"https://{hostname}",
                 }
             ],
         }

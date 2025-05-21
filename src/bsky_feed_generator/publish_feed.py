@@ -8,7 +8,8 @@ from bsky_feed_generator.server.config import settings
 def main():
     client = Client()
     client.login(settings.HANDLE, settings.PASSWORD.get_secret_value())
-    assert client.me is not None, "Failed to login"
+    me = client.me
+    assert me is not None and me.did is not None, "Failed to login"
 
     feed_did = settings.SERVICE_DID
     if not feed_did:
@@ -28,7 +29,7 @@ def main():
 
     response = client.com.atproto.repo.put_record(
         models.ComAtprotoRepoPutRecord.Data(
-            repo=client.me.did,
+            repo=me.did,
             collection=models.ids.AppBskyFeedGenerator,
             rkey=settings.RECORD_NAME,
             record=models.AppBskyFeedGenerator.Record(

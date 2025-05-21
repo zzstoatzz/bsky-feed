@@ -1,9 +1,10 @@
+from collections.abc import Callable
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import Any, ClassVar
 
 from atproto_client.models.string_formats import AtUri, Handle, RecordKey
-from pydantic import Field, ImportString, IPvAnyAddress, SecretStr, field_validator
+from pydantic import Field, ImportString, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,14 +26,14 @@ class Settings(BaseSettings):
 
     # --- Optional Server Settings with Defaults ---
     SERVICE_DID: str | None = None
-    LISTEN_HOST: IPvAnyAddress = IPv4Address("0.0.0.0")
+    LISTEN_HOST: IPv4Address = IPv4Address("0.0.0.0")
     LISTEN_PORT: int = 8080
     LOG_LEVEL: str = "INFO"
 
     # --- Feed Behavior Settings ---
     IGNORE_ARCHIVED_POSTS: bool = False
     IGNORE_REPLY_POSTS: bool = False
-    CUSTOM_FILTER_FUNCTION: ImportString | None = Field(
+    CUSTOM_FILTER_FUNCTION: ImportString[Callable[..., bool]] | None = Field(
         default=None,
         description="Optional path to a custom filter function (e.g., 'my_module.my_filter_func') to decide post inclusion. The function should accept (record, created_post) and return bool.",
     )

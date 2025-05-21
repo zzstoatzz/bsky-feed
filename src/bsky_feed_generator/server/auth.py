@@ -2,7 +2,6 @@ from atproto import DidInMemoryCache, IdResolver, verify_jwt
 from atproto.exceptions import TokenInvalidSignatureError
 from flask import Request
 
-
 _CACHE = DidInMemoryCache()
 _ID_RESOLVER = IdResolver(cache=_CACHE)
 
@@ -36,7 +35,8 @@ def validate_auth(request: "Request") -> str:
 
     try:
         result = verify_jwt(jwt, _ID_RESOLVER.did.resolve_atproto_key)
-        assert result.iss is not None, "expected issuer in JWT"
-        return result.iss
+        iss = result.iss
+        assert iss is not None, "expected issuer in JWT"
+        return iss
     except TokenInvalidSignatureError as e:
         raise AuthorizationError("Invalid signature") from e
