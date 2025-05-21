@@ -78,11 +78,21 @@ def _run(name, operations_callback, stream_stop_event=None):
     params = None
     if state:
         params = models.ComAtprotoSyncSubscribeRepos.Params(cursor=state.cursor)
+        logger.info(
+            f"DATA_STREAM: Found existing state for service '{name}'. Using cursor: {state.cursor}"
+        )
+    else:
+        logger.info(
+            f"DATA_STREAM: No existing state found for service '{name}'. Will start with cursor 0 after client init."
+        )
 
     client = FirehoseSubscribeReposClient(params)
 
     if not state:
         SubscriptionState.create(service=name, cursor=0)
+        logger.info(
+            f"DATA_STREAM: Created new state for service '{name}' with initial cursor 0 in DB."
+        )
 
     def on_message_handler(message: firehose_models.MessageFrame) -> None:
         # stop on next message if requested
