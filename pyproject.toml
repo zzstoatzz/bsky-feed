@@ -11,7 +11,7 @@ dependencies = [
     "Flask~=2.3.2",
     "pydantic-settings~=2.9.1",
     "waitress~=2.1.2",
-    "atproto",
+    "atproto @ git+https://github.com/MarshalX/atproto.git@refs/pull/605/head",
 ]
 
 [project.scripts]
