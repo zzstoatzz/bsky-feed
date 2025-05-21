@@ -1,0 +1,43 @@
+# fly.toml app configuration file generated for bsky-feed on 2025-05-20T22:20:53-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'bsky-feed'
+primary_region = 'ord'
+
+[build]
+
+[env]
+DATABASE_URI = "/data/feed_database.db"
+
+# Explicitly define the command to run the application using waitress for the 'app' process.
+# This overrides the CMD in the Dockerfile.
+[processes]
+app = "uv run bsky_feed_generator"
+
+[http_service]
+internal_port = 8080
+force_https = true
+auto_stop_machines = 'stop'
+auto_start_machines = true
+min_machines_running = 1
+processes = ['app']
+
+[[http_service.checks]]
+interval = "10s"
+timeout = "2s"
+method = "GET"
+path = "/"
+grace_period = "5s"
+
+# Mount the persistent volume for the SQLite database.
+# Assumes the database file (e.g., feed_database.db) is at the root of the project (/app in the container).
+[mounts]
+source = "bsky_feed_data"
+destination = "/data"
+
+[[vm]]
+memory = '1gb'
+cpu_kind = 'shared'
+cpus = 1
