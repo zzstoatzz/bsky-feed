@@ -15,9 +15,6 @@ git clone https://github.com/zzstoatzz/bsky-feed.git
 
 5. run `just deploy` to deploy the app to fly.io
 
-## Troubleshooting Notes
-
-I had some issues with the feed falling behind, which I cronicled in [./documents/firehose_cursor_issue_resolution.md](./documents/firehose_cursor_issue_resolution.md).
 
 <details>
 <summary>original template documentation</summary>
