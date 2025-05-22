@@ -2,7 +2,7 @@
 
 0. clone the repo
 ```
-git clone https://github.com/n8n1/bsky-feed.git
+git clone https://github.com/zzstoatzz/bsky-feed.git
 ```
 
 1. copy `.env.example` to `.env` and set variables (except `FEED_URI`)
@@ -15,6 +15,9 @@ git clone https://github.com/n8n1/bsky-feed.git
 
 5. run `just deploy` to deploy the app to fly.io
 
+## Troubleshooting Notes
+
+I had some issues with the feed falling behind, which I cronicled in [./documents/firehose_cursor_issue_resolution.md](./documents/firehose_cursor_issue_resolution.md).
 
 <details>
 <summary>original template documentation</summary>
