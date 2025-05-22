@@ -28,3 +28,8 @@ docker-test:
 # deploy the app to fly.io
 deploy:
     fly deploy
+
+# run the spongebob_filter benchmark
+benchmark:
+    @echo "Running spongebob_filter benchmarks with pytest-benchmark..."
+    uv run pytest benchmarks/test_spongebob_filter_benchmark.py --benchmark-json benchmark_results.json

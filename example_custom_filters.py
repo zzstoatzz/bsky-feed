@@ -9,49 +9,65 @@ URL_RE = re.compile(r"https?://\S+|www\.\S+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/\S+")
 HASHTAG_RE = re.compile(r"#\w+")
 
 
-def _alt_span(s: str, lower_first: bool) -> bool:
-    """Helper function to detect alternating case span."""
-    logger.debug(f"_alt_span: input='{s}', lower_first={lower_first}")
-    span = 0
-    for i, ch in enumerate(s):
-        if not ch.isalpha():
-            logger.debug(
-                f"  _alt_span: Char '{ch}' at {i} is not alpha. Resetting span from {span} to 0."
-            )
-            span = 0
-            continue
+def _is_spongebob_word(s: str) -> bool:
+    """
+    Helper function to detect alternating case span in a single pass.
+    Checks for patterns like 'aBaBaBa' or 'BaBaBaB'.
+    """
+    if (
+        len(s) < MIN_SPONGEBOB_LEN
+    ):  # Ensure consistency, though outer function already checks
+        return False
 
-        expect_lower = (span % 2 == 0) == lower_first
-        logger.debug(
-            f"  _alt_span: Char '{ch}' at {i}: current_span={span}, expect_lower={expect_lower}"
+    span_lower_first = 0  # Tracks 'aBaB...' pattern
+    span_upper_first = 0  # Tracks 'BaBa...' pattern
+
+    for char_code in [
+        ord(c) for c in s
+    ]:  # Iterate using ord for potential minor optimization
+        # char.isalpha()
+        is_alpha = (ord("a") <= char_code <= ord("z")) or (
+            ord("A") <= char_code <= ord("Z")
         )
 
-        if ch.islower() if expect_lower else ch.isupper():
-            span += 1
-            logger.debug(f"    _alt_span: Match! New span: {span}")
-            if span >= MIN_SPONGEBOB_LEN:
-                logger.debug(
-                    f"    _alt_span: Span {span} >= {MIN_SPONGEBOB_LEN}. Returning True."
-                )
-                return True
+        if not is_alpha:
+            span_lower_first = 0
+            span_upper_first = 0
+            continue
+
+        # char.islower()
+        current_char_is_lower = ord("a") <= char_code <= ord("z")
+
+        # Pattern 1: Starts with lowercase (e.g., aBcDeFg)
+        # Expectation: if span_lower_first is even, expect lower; if odd, expect upper.
+        if current_char_is_lower == (span_lower_first % 2 == 0):
+            span_lower_first += 1
         else:
-            logger.debug(
-                f"    _alt_span: No match. Was expecting lower: {expect_lower}, got lower: {ch.islower()}"
-            )
-            # If the current char could start a new sequence of the same lower_first type, set span to 1
-            if (
-                ch.islower() if lower_first else ch.isupper()
-            ):  # Check if current char matches the initial expectation for a new span
-                logger.debug(
-                    f"      _alt_span: Current char '{ch}' could start new span. Resetting span from {span} to 1."
-                )
-                span = 1
+            # Mismatch. Can current char start a new lower-first pattern?
+            if current_char_is_lower:
+                span_lower_first = 1
             else:
-                logger.debug(
-                    f"      _alt_span: Current char '{ch}' cannot start new span. Resetting span from {span} to 0."
-                )
-                span = 0
-    logger.debug(f"_alt_span: Returning False for '{s}' (final span: {span})")
+                span_lower_first = 0
+
+        # Pattern 2: Starts with uppercase (e.g., AbCdEfG)
+        # Expectation: if span_upper_first is even, expect upper; if odd, expect lower.
+        if (not current_char_is_lower) == (
+            span_upper_first % 2 == 0
+        ):  # current_char_is_upper == (span_upper_first % 2 == 0)
+            span_upper_first += 1
+        else:
+            # Mismatch. Can current char start a new upper-first pattern?
+            if not current_char_is_lower:  # current_char_is_upper
+                span_upper_first = 1
+            else:
+                span_upper_first = 0
+
+        if (
+            span_lower_first >= MIN_SPONGEBOB_LEN
+            or span_upper_first >= MIN_SPONGEBOB_LEN
+        ):
+            return True
+
     return False
 
 
@@ -86,10 +102,22 @@ def spongebob_filter(record: models.AppBskyFeedPost.Record, created_post: dict) 
     )
 
     for word in text_without_hashtags_or_urls.split():
-        if not word:
+        if not word:  # Handles potential empty strings if there are multiple spaces
             continue
-        logger.debug(f"  spongebob_filter: Checking word: '{word}'")
-        if _alt_span(word, True) or _alt_span(word, False):
+
+        # logger.debug(f"  spongebob_filter: Checking word: '{word}'") # Logged by _is_spongebob_word if needed
+
+        # No need to check len(word) < MIN_SPONGEBOB_LEN here if _is_spongebob_word handles it robustly,
+        # but the previous optimization in this loop was beneficial.
+        # The _is_spongebob_word function now has its own length check at the start for safety/clarity,
+        # but the primary check is still best here to avoid function call overhead for short words.
+        if len(word) < MIN_SPONGEBOB_LEN:
+            # logger.debug( # This logger was very helpful before, let's keep it but commented for now
+            #     f"    spongebob_filter: Word '{word}' is too short (len: {len(word)}). Skipping."
+            # )
+            continue
+
+        if _is_spongebob_word(word):  # Call the new single-pass function
             logger.debug(
                 f"spongebob_filter: Word '{word}' IS Spongebob case. Returning True."
             )

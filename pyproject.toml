@@ -18,7 +18,15 @@ dependencies = [
 bsky_feed_generator = "bsky_feed_generator.server.run_server:main"
 
 [dependency-groups]
-dev = ["pytest-asyncio", "pytest-sugar", "ruff", "pyright", "ty"]
+dev = [
+    "pytest-asyncio",
+    "pytest-sugar",
+    "ruff",
+    "pyright",
+    "ty",
+    "rich",
+    "pytest-benchmark",
+]
 
 [build-system]
 requires = ["hatchling", "hatch-fancy-pypi-readme>=22.5.0"]
