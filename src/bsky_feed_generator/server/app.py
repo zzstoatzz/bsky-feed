@@ -1,6 +1,7 @@
 import signal
 import sys
 import threading
+from datetime import datetime, timezone
 
 from flask import Flask, jsonify, request
 
@@ -111,7 +112,11 @@ def get_feed_skeleton():
     except ValueError:
         return "Malformed cursor", 400
 
-    return jsonify(body)
+    body["generation_timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+
+    response = jsonify(body)
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @app.route("/debug/posts", methods=["GET"])
@@ -154,7 +159,7 @@ def debug_posts():
 
     return jsonify(
         {
-            "server_time": datetime.utcnow().isoformat(),
+            "server_time": datetime.now(timezone.utc).isoformat(),
             "total_posts_orm": Post.select().count(),
             "total_posts_sql": total_sql,
             "journal_mode": journal_mode[0] if journal_mode else None,
