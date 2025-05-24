@@ -2,7 +2,8 @@ import re
 
 from atproto import models
 
-from bsky_feed_generator.server.logger import logger
+# Removed logger import to fix circular dependency
+# from bsky_feed_generator.server.logger import logger
 
 MIN_SPONGEBOB_LEN = 7
 URL_RE = re.compile(r"https?://\S+|www\.\S+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/\S+")
@@ -83,23 +84,15 @@ def spongebob_filter(record: models.AppBskyFeedPost.Record, created_post: dict) 
         True if the post should be included, False otherwise.
     """
     text = record.text
-    logger.debug(f"spongebob_filter: Input text: '{text}'")
 
     if not text:
-        logger.debug("spongebob_filter: Text is None or empty. Returning False.")
         return False
 
     if text.lower().startswith("macro:"):
-        logger.debug("spongebob_filter: Text starts with 'macro:'. Returning False.")
         return False
 
     text_without_urls = URL_RE.sub("", text)
-    logger.debug(f"  spongebob_filter: Text without URLs: '{text_without_urls}'")
-
     text_without_hashtags_or_urls = HASHTAG_RE.sub("", text_without_urls)
-    logger.debug(
-        f"  spongebob_filter: Text without URLs or hashtags: '{text_without_hashtags_or_urls}'"
-    )
 
     for word in text_without_hashtags_or_urls.split():
         if not word:  # Handles potential empty strings if there are multiple spaces
@@ -118,14 +111,7 @@ def spongebob_filter(record: models.AppBskyFeedPost.Record, created_post: dict) 
             continue
 
         if _is_spongebob_word(word):  # Call the new single-pass function
-            logger.debug(
-                f"spongebob_filter: Word '{word}' IS Spongebob case. Returning True."
-            )
             return True
-
-    logger.debug(
-        "spongebob_filter: No Spongebob case found in any word. Returning False."
-    )
     return False
 
 
