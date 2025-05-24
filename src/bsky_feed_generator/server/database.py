@@ -17,6 +17,19 @@ if db_path.name != settings.DATABASE_URI:  # True if DATABASE_URI includes a pat
 db = peewee.SqliteDatabase(settings.DATABASE_URI)
 
 
+def configure_db():
+    """Configure database with proper WAL settings"""
+    db.connect(reuse_if_open=True)
+    # Enable WAL mode for better concurrency
+    db.execute_sql("PRAGMA journal_mode=WAL")
+    # Set busy timeout to avoid lock errors
+    db.execute_sql("PRAGMA busy_timeout=5000")
+    # Ensure we read latest data
+    db.execute_sql("PRAGMA read_uncommitted=1")
+    # Auto-checkpoint at 1000 pages
+    db.execute_sql("PRAGMA wal_autocheckpoint=1000")
+
+
 class BaseModel(peewee.Model):
     class Meta:
         database = db
@@ -35,5 +48,6 @@ class SubscriptionState(BaseModel):
     cursor = peewee.BigIntegerField()
 
 
-db.connect(reuse_if_open=True)  # Added reuse_if_open for safety
+# Configure and create tables
+configure_db()
 db.create_tables([Post, SubscriptionState], safe=True)

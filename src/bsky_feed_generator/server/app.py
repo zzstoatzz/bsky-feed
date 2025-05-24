@@ -8,8 +8,24 @@ from bsky_feed_generator.server import data_stream
 from bsky_feed_generator.server.algos import algos
 from bsky_feed_generator.server.config import settings
 from bsky_feed_generator.server.data_filter import operations_callback
+from bsky_feed_generator.server.database import db
 
 app = Flask(__name__)
+
+
+@app.before_request
+def before_request():
+    """Ensure fresh database connection for each request"""
+    if db.is_closed():
+        db.connect()
+
+
+@app.teardown_request
+def teardown_request(exception=None):
+    """Close database connection after each request"""
+    if not db.is_closed():
+        db.close()
+
 
 stream_stop_event = threading.Event()
 stream_thread = threading.Thread(
@@ -96,3 +112,55 @@ def get_feed_skeleton():
         return "Malformed cursor", 400
 
     return jsonify(body)
+
+
+@app.route("/debug/posts", methods=["GET"])
+def debug_posts():
+    import sqlite3
+    from datetime import datetime
+
+    from bsky_feed_generator.server.database import Post
+
+    # Get posts via Peewee ORM
+    posts = (
+        Post.select()
+        .order_by(Post.indexed_at.desc())
+        .order_by(Post.cid.desc())
+        .limit(10)
+    )
+
+    orm_results = []
+    for p in posts:
+        orm_results.append(
+            {"uri": p.uri, "indexed_at": p.indexed_at.isoformat(), "cid": p.cid}
+        )
+
+    # Get posts via direct SQL for comparison
+    direct_conn = sqlite3.connect(settings.DATABASE_URI)
+    direct_cursor = direct_conn.cursor()
+    direct_cursor.execute(
+        "SELECT uri, indexed_at, cid FROM post ORDER BY indexed_at DESC, cid DESC LIMIT 10"
+    )
+    sql_results = []
+    for row in direct_cursor.fetchall():
+        sql_results.append({"uri": row[0], "indexed_at": row[1], "cid": row[2]})
+
+    # Get WAL status
+    wal_status = direct_cursor.execute("PRAGMA wal_checkpoint").fetchone()
+    journal_mode = direct_cursor.execute("PRAGMA journal_mode").fetchone()
+    total_sql = direct_cursor.execute("SELECT COUNT(*) FROM post").fetchone()[0]
+
+    direct_conn.close()
+
+    return jsonify(
+        {
+            "server_time": datetime.utcnow().isoformat(),
+            "total_posts_orm": Post.select().count(),
+            "total_posts_sql": total_sql,
+            "journal_mode": journal_mode[0] if journal_mode else None,
+            "wal_checkpoint_result": wal_status,
+            "orm_results": orm_results,
+            "sql_results": sql_results,
+            "mismatch": orm_results != sql_results,
+        }
+    )
