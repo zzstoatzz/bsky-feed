@@ -51,8 +51,8 @@ def _create_mock_post(
 @pytest.fixture
 def mock_db_operations():
     with (
-        patch("src.bsky_feed_generator.server.data_filter.Post.create") as mock_create,
-        patch("src.bsky_feed_generator.server.data_filter.Post.delete") as mock_delete,
+        patch("bsky_feed_generator.server.data_filter.Post.create") as mock_create,
+        patch("bsky_feed_generator.server.data_filter.Post.delete") as mock_delete,
     ):
         yield mock_create, mock_delete
 
@@ -61,7 +61,7 @@ def mock_db_operations():
 def test_custom_spongebob_filter_positive_case(monkeypatch, mock_db_operations, caplog):
     mock_create, _ = mock_db_operations
     monkeypatch.setattr(
-        "src.bsky_feed_generator.server.data_filter.settings",
+        "bsky_feed_generator.server.data_filter.settings",
         config.Settings(
             CUSTOM_FILTER_FUNCTION=example_spongebob_filter,
             IGNORE_ARCHIVED_POSTS=False,
@@ -86,7 +86,7 @@ def test_custom_spongebob_filter_negative_case(  # Renamed for clarity
 ):
     mock_create, _ = mock_db_operations
     monkeypatch.setattr(
-        "src.bsky_feed_generator.server.data_filter.settings",
+        "bsky_feed_generator.server.data_filter.settings",
         config.Settings(
             CUSTOM_FILTER_FUNCTION=example_spongebob_filter,
             IGNORE_ARCHIVED_POSTS=False,
@@ -109,7 +109,7 @@ def test_custom_spongebob_filter_negative_case(  # Renamed for clarity
 def test_no_custom_filter_configured(monkeypatch, mock_db_operations):
     mock_create, _ = mock_db_operations
     monkeypatch.setattr(
-        "src.bsky_feed_generator.server.data_filter.settings",
+        "bsky_feed_generator.server.data_filter.settings",
         config.Settings(
             CUSTOM_FILTER_FUNCTION=None,
             IGNORE_ARCHIVED_POSTS=False,

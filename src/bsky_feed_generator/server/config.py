@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     LISTEN_HOST: IPv4Address = IPv4Address("0.0.0.0")
     LISTEN_PORT: int = 8080
     LOG_LEVEL: str = "INFO"
+    JETSTREAM_URL: str = "wss://stream.waow.tech/subscribe"
 
     # --- Feed Behavior Settings ---
     IGNORE_ARCHIVED_POSTS: bool = False
