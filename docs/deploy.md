@@ -25,6 +25,38 @@ windows behind now drops the next one instead of queueing it. after the
 deploy, watch `inbox_rejected` and `traps` on `/debug/cells`; both should stay
 at 0.
 
+## before a deploy
+
+`zig build test` runs the cells on the jetstream fixture and the mirrors
+against a local stand-in, so it never reaches a real https origin. v6 (zeldi
+`be26d5b`) passed it and still aborted in prod on the mirrors' first poll of
+api.graze.social, in tls setup the tests never ran. so a deploy also runs the
+image it will ship, on this machine, against the fixture and the real https
+origins, and goes ahead only if that holds:
+
+1. build and push the image on fly's builder without deploying it, under a
+   label of its own:
+   `fly deploy --remote-only --build-only --push --image-label gate-<sha> -a zeldi`
+2. `fly auth docker`, then run it on the fixture instead of jetstream (the
+   mirrors still make their real https GETs to api.graze.social; that is plain
+   https, not a firehose, so it is fine on a home network):
+   ```bash
+   docker run --rm -d --name zeldi-gate --platform linux/amd64 -p 18080:8080 \
+     -v "$PWD/testdata:/testdata:ro" registry.fly.io/zeldi:gate-<sha> \
+     /app/zig-out/bin/zeldi dev --fixture /testdata/jetstream.ndjson \
+     --listen 0.0.0.0 --data /tmp/data --config zeldi.json
+   ```
+3. after the mirrors' first poll (a minute covers `poll_ms`),
+   `curl localhost:18080/debug/cells` must show every cell with `traps`,
+   `inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0, each mirror
+   with calls past its first, and `docker logs zeldi-gate` no `panic` and no
+   egress refusal. then `docker rm -f zeldi-gate`.
+4. deploy that same image, so prod runs what was checked:
+   `fly deploy --image registry.fly.io/zeldi:gate-<sha> -a zeldi`
+
+record `fly releases -a zeldi` and the running image first, so a rollback is
+`fly deploy --image <that image> -a zeldi`.
+
 ## secrets
 
 serving a feed needs no credentials. getFeedSkeleton is a public read, the did
