@@ -16,6 +16,14 @@ start of `6416511` moved them from `/data/cells/`, so going back to a build
 before it means restoring the volume snapshot taken before v10
 (`vs_qZoezPRZyZ6KU5y9gmoz`).
 
+the kv build (zeldi abi 2) keeps each cell's store under
+`/data/tenants/feeds/cells/<cell>/`. its first start runs `import` before
+zeldi: it copies each `<cell>.sqlite` into that cell's store, checks the
+counts, and renames the database to `<cell>.sqlite.migrated` (with its -wal
+and -shm). going back to an abi 1 image means renaming those back first, or
+restoring the snapshot taken before the kv deploy; an abi 1 zeldi that finds
+no database starts its cells empty.
+
 the runner jails itself: its own mount, network, pid and ipc namespaces with
 only `/data/tenants/feeds` and its modules mounted, uid 100000, no
 capabilities, and a seccomp filter; `/proc/<runner>/status` shows
