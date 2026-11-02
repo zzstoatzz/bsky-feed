@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .zeldi = .{
-            .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/6f8660f.tar.gz",
-            .hash = "zeldi-0.0.0-XaMbKWiaBACc37LAG6JjIN-nBRDP4sVd3f-g_MV8-OX5",
+            .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/3c211cc.tar.gz",
+            .hash = "zeldi-0.0.0-XaMbKY-pBADNrO8Dz2or7IQxhqxsC_b7sE5bGSYrF256",
         },
     },
     .paths = .{
