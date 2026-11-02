@@ -10,6 +10,7 @@ RUN curl -fsSL -o /tmp/zig.tar.xz https://ziglang.org/download/${ZIG_VERSION}/zi
 WORKDIR /src
 COPY build.zig build.zig.zon ./
 COPY cells cells
+COPY tools tools
 RUN /opt/zig/zig build -Doptimize=ReleaseSafe -Dcpu=baseline
 
 FROM debian:bookworm-slim
@@ -18,4 +19,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /src/zig-out zig-out
 COPY zeldi.json zeldi.json
-CMD ["/app/zig-out/bin/zeldi", "dev", "--live", "--listen", "0.0.0.0", "--data", "/data", "--config", "zeldi.json", "--operator-port", "9090"]
+CMD ["/bin/sh", "-c", "/app/zig-out/bin/rewrite /data/tenants/feeds && exec /app/zig-out/bin/zeldi dev --live --listen 0.0.0.0 --data /data --config zeldi.json --operator-port 9090"]
