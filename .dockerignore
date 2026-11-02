@@ -1,6 +1,6 @@
-fly.toml
-.git/
-__pycache__/
-.envrc
-.venv/
-.env
+**
+!build.zig
+!build.zig.zon
+!cells/
+!cells/**
+!zeldi.json

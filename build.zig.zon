@@ -1,0 +1,17 @@
+.{
+    .name = .bsky_feed,
+    .version = "0.0.0",
+    .fingerprint = 0xab98ac44f2263235,
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .zeldi = .{
+            .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/be26d5b.tar.gz",
+            .hash = "zeldi-0.0.0-XaMbKT21AgBQg-BZRkIIL-7BgSdsElrXBaXhtGC3iflk",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "cells",
+    },
+}

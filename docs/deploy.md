@@ -1,0 +1,93 @@
+# deploy
+
+the feeds run on zeldi as one fly machine, the `zeldi` app in `ord`: shared
+cpu, 256 MB, and a 1 GB volume at `/data` for the cell sqlite files. it is the
+only place the feeds hold a live jetstream connection. `fly deploy --remote-only` builds the image on
+fly's builder, so the zig build never runs on a home machine.
+
+the machine never stops on its own (`auto_stop_machines = "off"`): a stopped
+machine is a feed that falls behind jetstream.
+
+## next deploy
+
+prod runs v5, which predates the egress address checks. from main at
+`0713831` on, a cell's `subscribe` url has to name a host on that cell's
+`egress` list, so spongebob's entry in `zeldi.json` lists its four
+jetstream hosts, and that config ships in the image with the binary. the
+mirror cells already list their source. nothing else in the prod config
+changes, and `--dev-loopback-egress` stays off, as it must on any machine that
+isn't a test.
+
+the new per-cell limits take their defaults, which the feeds e2e passes on the
+fixture. the one that can bite on live traffic is the inbox: 16 MiB of waiting
+batches, against batch windows of up to 8 MiB. a spongebob that falls two
+windows behind now drops the next one instead of queueing it. after the
+deploy, watch `inbox_rejected` and `traps` on `/debug/cells`; both should stay
+at 0.
+
+## secrets
+
+serving a feed needs no credentials. getFeedSkeleton is a public read, the did
+document is public, and the feed records that point here live on whichever
+account published them. so the design is three tiers, and the machine only ever
+sees the middle one.
+
+**public config, in the image.** `zeldi.json` holds
+the cells, their routes, and each cell's config: the hostname, the service did,
+and the at-uris of the feeds. a feed published by any account joins by adding
+its uri there; its record's `did` field names `did:web:feed.zzstoatzz.io`, and
+nothing about the publishing account reaches the host.
+
+**machine secrets, as fly secrets.** only values the process itself uses, like
+the bucket keys phase 1 needs (`fly storage create` sets those). none exist
+today. account passwords never go here.
+
+**publishing credentials, per account, off the machine.** an app password is
+only needed to write or update an `app.bsky.feed.generator` record, which is a
+step run from the laptop when a feed is created or its name or avatar changes.
+each account gets its own app password, made for that purpose, so revoking one
+touches one account. they live in the sops store
+(`~/tangled.org/zzstoatzz.io/secrets/prod.yaml`) under that account's
+`atproto.<account>` entry, with the handle's dots as dashes. zzstoatzz.io's is
+`atproto.zzstoatzz-io.app-password`, named "zeldi publish". the
+`atproto-app-password` skill makes or rotates one.
+
+`publish.py` resolves the publishing account's PDS from its did and logs in
+there, so the one-liner needs only the handle and the password from sops:
+
+```bash
+HANDLE=zzstoatzz.io PASSWORD="$(sops decrypt --extract '["atproto"]["zzstoatzz-io"]["app-password"]' ~/tangled.org/zzstoatzz.io/secrets/prod.yaml)" ./publish.py --publish
+```
+
+writing a value into the store with `sops set --value-stdin` takes JSON, so a
+bare password has to be quoted first: `| jq -R . |` works, and `jq -Rj` does
+not, because `-j` strips the quotes again and sops answers "Value for --set is
+not valid JSON".
+
+the old `PASSWORD` fly secret on `bsky-feed` still exists until that app is
+decommissioned; nothing here reads it.
+
+cells cannot read the environment at all: the guest imports are `sql_exec`,
+`sql_query`, `log`, `now`, `set_alarm`, and `subscribe`, with no WASI, and the
+only outside input a cell gets is its own config. a fly
+secret on the machine is not reachable from cell code. if a future cell needs a
+credential of its own, the host hands it over by cell name through a new
+import, so one cell never sees another's.
+
+feeds that personalize by viewer verify the requester's service-auth jwt
+against the signing key in that viewer's did document. those are public keys,
+so that needs no secret either.
+
+## cutover
+
+the spongebob feed record already points at `did:web:feed.zzstoatzz.io`, so
+moving it means moving that hostname, with no record write:
+
+1. issue a cert for `feed.zzstoatzz.io` on `zeldi` before moving anything
+   (`fly certs add`, validated through the `_acme-challenge` CNAME).
+2. point the `feed.zzstoatzz.io` CNAME at `zeldi.fly.dev` in cloudflare.
+3. roll back by pointing it at `bsky-feed.fly.dev` again, which keeps running
+   until zeldi has served for a while.
+
+once `bsky-feed` is retired, its `PASSWORD` fly secret is an app password
+sitting on a server that never needed it, so revoke it rather than move it.
