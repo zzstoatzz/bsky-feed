@@ -10,7 +10,8 @@ machine is a feed that falls behind jetstream.
 
 ## what runs
 
-prod runs zeldi `66d86de`, whose stores read tables by block range. its
+prod runs zeldi `1c1396e`, which reports each cell's commit count and p50/p99
+commit time in `zeldi cells 9090`. before it, zeldi `66d86de`, whose stores read tables by block range. its
 first image (`gate-8efbb75`) rewrote each cell's store into that format at
 start, kept the old one at `cells/<cell>.v1`, and was preceded by snapshot
 `vs_njlYzP4jqjNmtp0lD61mG`. before it, `gate-80797ac` ran zeldi `8faaae1`
