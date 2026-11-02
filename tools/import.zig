@@ -37,7 +37,7 @@ fn importOne(gpa: std.mem.Allocator, io: Io, arena: std.mem.Allocator, tenant: I
     const cell = file[0 .. file.len - ".sqlite".len];
     const path = try std.fmt.allocPrintSentinel(arena, "{s}/{s}", .{ tenant_path, file }, 0);
     var sql: ?*c.sqlite3 = null;
-    if (c.sqlite3_open_v2(path.ptr, &sql, c.SQLITE_OPEN_READONLY, null) != c.SQLITE_OK) return error.OpenSqlite;
+    if (c.sqlite3_open_v2(path.ptr, &sql, c.SQLITE_OPEN_READWRITE, null) != c.SQLITE_OK) return error.OpenSqlite;
     defer _ = c.sqlite3_close(sql);
 
     const dir = try tenant.createDirPathOpen(io, try std.fmt.allocPrint(arena, "cells/{s}", .{cell}), .{});
