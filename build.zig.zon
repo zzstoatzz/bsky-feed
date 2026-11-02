@@ -5,8 +5,16 @@
     .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .zeldi = .{
-            .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/6416511.tar.gz",
-            .hash = "zeldi-0.0.0-XaMbKRSzBAAP-08NGxbYMcFKsrmkxfPH8BoRaONMb4pq",
+            .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/8faaae1.tar.gz",
+            .hash = "zeldi-0.0.0-XaMbKRWOBAA9_fGmv7o1I6sHSj2UilNNzK9RKxfpc8CD",
+        },
+        .zkv = .{
+            .url = "https://tangled.org/zzstoatzz.io/zkv/archive/862bfc1e10f808c724c331ba33289d99877fb388.tar.gz",
+            .hash = "zkv-0.0.0-2lSvYGccAQBYngGa5LMGQrW8A8x8yfLUIQOVFHnAtBLL",
+        },
+        .sqlite = .{
+            .url = "https://www.sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            .hash = "N-V-__8AAETTsABEodUZZFAyfdAm9hEyqBXuLw9pRSO0vFh9",
         },
     },
     .paths = .{

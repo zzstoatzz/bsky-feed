@@ -5,6 +5,7 @@
 const std = @import("std");
 const zeldi = @import("zeldi");
 const feed = @import("feed.zig");
+const items = @import("items.zig");
 
 const Config = struct {
     /// the at-uri this cell answers for.
@@ -27,14 +28,6 @@ var config: Config = undefined;
 /// polls in a row that failed, for backoff.
 var failures: u6 = 0;
 
-const schema =
-    \\CREATE TABLE IF NOT EXISTS item (
-    \\  id INTEGER PRIMARY KEY,
-    \\  uri TEXT NOT NULL UNIQUE,
-    \\  first_seen_ms INTEGER NOT NULL
-    \\);
-    \\CREATE INDEX IF NOT EXISTS item_seen ON item (first_seen_ms);
-;
 
 export fn on_start(ptr: u32, len: u32) i32 {
     start(zeldi.input(ptr, len)) catch |err| {
@@ -47,7 +40,6 @@ export fn on_start(ptr: u32, len: u32) i32 {
 fn start(raw_config: []const u8) !void {
     config = try std.json.parseFromSliceLeaky(Config, config_arena_state.allocator(), raw_config, .{ .allocate = .alloc_always });
     if (config.poll_ms <= 0) return error.BadPollInterval;
-    try zeldi.exec(schema, .{});
     // cells built from one config would otherwise all poll at the same moment.
     const offset: i64 = @intCast(std.hash.Wyhash.hash(0, config.feed) % @as(u64, @intCast(config.poll_ms)));
     zeldi.setAlarm(zeldi.now() + offset);
@@ -88,23 +80,42 @@ fn poll() !void {
     };
 
     const now = zeldi.now();
-    try zeldi.exec("BEGIN", .{});
-    errdefer zeldi.exec("ROLLBACK", .{}) catch {};
+    var next: u64 = if (try zeldi.get(items.next_key)) |v| std.fmt.parseInt(u64, v, 10) catch return error.CorruptStore else 1;
     // the source lists newest first; inserting oldest first gives newer posts
     // the higher ids, which is the order the cell serves.
     var i = posts.items.len;
     while (i > 0) {
         i -= 1;
-        try zeldi.exec("INSERT OR IGNORE INTO item (uri, first_seen_ms) VALUES (?1, ?2)", .{ posts.items[i], now });
+        const uri = posts.items[i];
+        const uri_key = try items.uriKey(try zeldi.arena.alloc(u8, uri.len + 2), uri);
+        if (try zeldi.get(uri_key) != null) continue;
+        try zeldi.put(try items.itemKey(try zeldi.arena.alloc(u8, 22), next), try items.itemValue(try zeldi.arena.alloc(u8, uri.len + 21), now, uri));
+        try zeldi.put(uri_key, try std.fmt.allocPrint(zeldi.arena, "{d}", .{next}));
+        next += 1;
     }
-    try zeldi.exec("DELETE FROM item WHERE first_seen_ms < ?1", .{now - config.keep_ms});
-    try zeldi.exec("COMMIT", .{});
+    try zeldi.put(items.next_key, try std.fmt.allocPrint(zeldi.arena, "{d}", .{next}));
+    try expire(now - config.keep_ms);
+}
+
+/// deletes the posts first seen before `cutoff`, oldest first.
+fn expire(cutoff: i64) !void {
+    while (true) {
+        const page = try zeldi.scan(.{ .start = items.items_start, .end = items.items_end, .limit = 100 });
+        for (page.entries) |e| {
+            const item = items.parseItem(e.value) catch return error.CorruptStore;
+            if (item.first_seen_ms >= cutoff) return;
+            try zeldi.del(e.key);
+            try zeldi.del(try items.uriKey(try zeldi.arena.alloc(u8, item.uri.len + 2), item.uri));
+        }
+        if (!page.more) return;
+    }
 }
 
 fn noneSeen(uris: []const []const u8) !bool {
-    const list = try std.json.Stringify.valueAlloc(zeldi.arena, uris, .{});
-    const rows = try zeldi.query("SELECT count(*) FROM item WHERE uri IN (SELECT value FROM json_each(?1))", .{list});
-    return rows[0][0].integer == 0;
+    for (uris) |uri| {
+        if (try zeldi.get(try items.uriKey(try zeldi.arena.alloc(u8, uri.len + 2), uri)) != null) return false;
+    }
+    return true;
 }
 
 fn fetchPage(cursor: ?[]const u8) !Page {
@@ -154,15 +165,16 @@ const Skeleton = struct { cursor: []const u8, feed: []const SkeletonPost };
 /// newest first; the cursor is the id of the last post on the page.
 fn skeleton(req: zeldi.Request) !u64 {
     const limit = feed.parseLimit(req.param("limit"));
-    const rows = switch (try parseCursor(req.param("cursor"))) {
+    const end = switch (try parseCursor(req.param("cursor"))) {
         .eof => return zeldi.respondJson(200, Skeleton{ .cursor = feed.eof, .feed = &.{} }),
-        .start => try zeldi.query("SELECT uri, id FROM item ORDER BY id DESC LIMIT ?1", .{limit}),
-        .before => |id| try zeldi.query("SELECT uri, id FROM item WHERE id < ?1 ORDER BY id DESC LIMIT ?2", .{ id, limit }),
+        .start => items.items_end,
+        .before => |id| try items.itemKey(try zeldi.arena.alloc(u8, 22), @intCast(@max(id, 0))),
     };
-    const posts = try zeldi.arena.alloc(SkeletonPost, rows.len);
-    for (rows, posts) |row, *p| p.* = .{ .post = row[0].string };
-    const cursor = if (rows.len > 0)
-        try std.fmt.allocPrint(zeldi.arena, "{d}", .{rows[rows.len - 1][1].integer})
+    const page = try zeldi.scan(.{ .start = items.items_start, .end = end, .limit = limit, .reverse = true });
+    const posts = try zeldi.arena.alloc(SkeletonPost, page.entries.len);
+    for (page.entries, posts) |e, *p| p.* = .{ .post = (items.parseItem(e.value) catch return error.CorruptStore).uri };
+    const cursor = if (page.entries.len > 0)
+        try std.fmt.allocPrint(zeldi.arena, "{d}", .{std.fmt.parseInt(u64, page.entries[page.entries.len - 1].key[2..], 10) catch return error.CorruptStore})
     else
         feed.eof;
     return zeldi.respondJson(200, Skeleton{ .cursor = cursor, .feed = posts });

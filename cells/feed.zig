@@ -40,30 +40,27 @@ pub fn parseLimit(raw: ?[]const u8) u32 {
     return @intCast(std.math.clamp(n, 1, max_limit));
 }
 
-pub const schema =
-    \\CREATE TABLE IF NOT EXISTS post (
-    \\  id INTEGER PRIMARY KEY,
-    \\  uri TEXT NOT NULL,
-    \\  cid TEXT NOT NULL,
-    \\  reply_parent TEXT,
-    \\  reply_root TEXT,
-    \\  indexed_at INTEGER NOT NULL
-    \\);
-    \\CREATE UNIQUE INDEX IF NOT EXISTS post_uri ON post (uri);
-    \\CREATE INDEX IF NOT EXISTS post_page ON post (indexed_at DESC, cid DESC);
-    \\CREATE TABLE IF NOT EXISTS subscription_state (
-    \\  service TEXT PRIMARY KEY,
-    \\  cursor INTEGER NOT NULL
-    \\);
-;
+/// a post's key in the store: newest first is a reverse scan of `posts`.
+pub fn postKey(buf: []u8, indexed_at_ms: i64, cid: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "t/{d:0>20}/{s}", .{ @as(u64, @intCast(indexed_at_ms)), cid });
+}
 
-pub const page_first =
-    \\SELECT uri, cid, indexed_at FROM post
-    \\ORDER BY indexed_at DESC, cid DESC LIMIT ?1
-;
+/// keys of the form `postKey` writes all fall in `[posts_start, posts_end)`.
+pub const posts_start = "t/";
+pub const posts_end = "t0";
 
-pub const page_after =
-    \\SELECT uri, cid, indexed_at FROM post
-    \\WHERE (indexed_at = ?1 AND cid < ?2) OR indexed_at < ?1
-    \\ORDER BY indexed_at DESC, cid DESC LIMIT ?3
-;
+/// maps a post's uri to its key, so a delete can find it.
+pub fn uriKey(buf: []u8, uri: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "u/{s}", .{uri});
+}
+
+pub fn cursorKey(buf: []u8, service: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(buf, "c/{s}", .{service});
+}
+
+/// the time and cid a post key holds.
+pub fn parsePostKey(key: []const u8) error{MalformedKey}!Cursor {
+    if (key.len < 23 or !std.mem.startsWith(u8, key, posts_start) or key[22] != '/') return error.MalformedKey;
+    const ms = std.fmt.parseInt(i64, key[2..22], 10) catch return error.MalformedKey;
+    return .{ .indexed_at_ms = ms, .cid = key[23..] };
+}

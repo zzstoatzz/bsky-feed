@@ -69,9 +69,9 @@ fn start(raw_config: []const u8) !void {
     if (config.jetstreams.len == 0) return error.NoJetstreams;
     service_did = config.service_did orelse try std.fmt.allocPrint(persistent, "did:web:{s}", .{config.hostname});
 
-    try zeldi.exec(feed.schema, .{});
-    const rows = try zeldi.query("SELECT cursor FROM subscription_state WHERE service = ?1", .{cursor_key});
-    committed = if (rows.len > 0 and rows[0][0] == .integer) rows[0][0].integer else null;
+    var key_buf: [64]u8 = undefined;
+    const saved = try zeldi.get(try feed.cursorKey(&key_buf, cursor_key));
+    committed = if (saved) |v| try std.fmt.parseInt(i64, v, 10) else null;
     try zeldi.subscribe(.{ .url = try jetstreamUrl(config.jetstreams[0], committed) });
     zeldi.logf("subscribed to {s} from cursor {?d}", .{ post_collection, committed });
 }
@@ -108,9 +108,10 @@ export fn on_connect() u64 {
 }
 
 /// state of the batch window being ingested. a window arrives as one or more
-/// chunks and commits as one transaction when the last chunk lands.
+/// chunks; each commits as it ends, and the last one also records the cursor,
+/// so a window cut short is read again from the cursor before it. writes are
+/// keyed by uri, so reading a post twice stores it once.
 const Window = struct {
-    open: bool = false,
     failed: bool = false,
     indexed_at: i64 = 0,
     cursor: ?i64 = null,
@@ -123,14 +124,9 @@ var window: Window = .{};
 export fn on_events(ptr: u32, len: u32, flags: u32) i32 {
     const first = flags & zeldi.events_first != 0;
     const last = flags & zeldi.events_last != 0;
-    if (first) {
-        if (window.open) zeldi.exec("ROLLBACK", .{}) catch {};
-        window = .{};
-    }
+    if (first) window = .{ .indexed_at = zeldi.now() };
     if (window.failed) return -1;
-    ingest(zeldi.input(ptr, len), first, last) catch |err| {
-        if (window.open) zeldi.exec("ROLLBACK", .{}) catch {};
-        window.open = false;
+    ingest(zeldi.input(ptr, len), last) catch |err| {
         window.failed = true;
         zeldi.logf("batch failed: {t}", .{err});
         return -1;
@@ -138,14 +134,7 @@ export fn on_events(ptr: u32, len: u32, flags: u32) i32 {
     return 0;
 }
 
-fn ingest(chunk: []const u8, first: bool, last: bool) !void {
-    if (first) {
-        try zeldi.exec("BEGIN", .{});
-        window.open = true;
-        window.indexed_at = zeldi.now();
-    }
-    if (!window.open) return error.NoOpenWindow;
-
+fn ingest(chunk: []const u8, last: bool) !void {
     var line_arena: std.heap.ArenaAllocator = .init(std.heap.wasm_allocator);
     defer line_arena.deinit();
     var lines = std.mem.splitScalar(u8, chunk, '\n');
@@ -156,12 +145,11 @@ fn ingest(chunk: []const u8, first: bool, last: bool) !void {
     }
 
     if (!last) return;
-    if (window.cursor) |c| try zeldi.exec(
-        "INSERT INTO subscription_state (service, cursor) VALUES (?1, ?2) ON CONFLICT (service) DO UPDATE SET cursor = excluded.cursor",
-        .{ cursor_key, c },
-    );
-    try zeldi.exec("COMMIT", .{});
-    window.open = false;
+    if (window.cursor) |c| {
+        var key_buf: [64]u8 = undefined;
+        try zeldi.put(try feed.cursorKey(&key_buf, cursor_key), try std.fmt.allocPrint(zeldi.arena, "{d}", .{c}));
+    }
+    try zeldi.commit();
     if (window.cursor) |c| committed = c;
     if (window.added > 0) zeldi.logf("batch: {d} matched, {d} deletes, cursor {?d}", .{ window.added, window.deleted, window.cursor });
 }
@@ -178,14 +166,17 @@ fn ingestLine(scratch: std.mem.Allocator, line: []const u8) !void {
         const record = commit.record orelse return;
         const cid = commit.cid orelse return;
         if (!try filter.matches(scratch, record.text)) return;
-        const reply = record.reply;
-        try zeldi.exec(
-            "INSERT OR IGNORE INTO post (uri, cid, reply_parent, reply_root, indexed_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            .{ uri, cid, if (reply) |r| r.parent.uri else null, if (reply) |r| r.root.uri else null, window.indexed_at },
-        );
+        const uri_key = try feed.uriKey(try scratch.alloc(u8, uri.len + 2), uri);
+        if (try zeldi.get(uri_key) != null) return;
+        const post_key = try feed.postKey(try scratch.alloc(u8, cid.len + 23), window.indexed_at, cid);
+        try zeldi.put(post_key, uri);
+        try zeldi.put(uri_key, post_key);
         window.added += 1;
     } else if (std.mem.eql(u8, commit.operation, "delete")) {
-        try zeldi.exec("DELETE FROM post WHERE uri = ?1", .{uri});
+        const uri_key = try feed.uriKey(try scratch.alloc(u8, uri.len + 2), uri);
+        const post_key = try zeldi.get(uri_key) orelse return;
+        try zeldi.del(post_key);
+        try zeldi.del(uri_key);
         window.deleted += 1;
     }
 }
@@ -218,19 +209,20 @@ const Skeleton = struct { cursor: []const u8, feed: []const SkeletonPost };
 
 fn skeleton(req: zeldi.Request) !u64 {
     const limit = feed.parseLimit(req.param("limit"));
-    const rows = switch (try feed.parseCursor(req.param("cursor"))) {
+    const end = switch (try feed.parseCursor(req.param("cursor"))) {
         .eof => return zeldi.respondJson(200, Skeleton{ .cursor = feed.eof, .feed = &.{} }),
-        .start => try zeldi.query(feed.page_first, .{limit}),
-        .at => |c| try zeldi.query(feed.page_after, .{ c.indexed_at_ms, c.cid, limit }),
+        .start => feed.posts_end,
+        .at => |c| try feed.postKey(try zeldi.arena.alloc(u8, c.cid.len + 23), c.indexed_at_ms, c.cid),
     };
+    const page = try zeldi.scan(.{ .start = feed.posts_start, .end = end, .limit = limit, .reverse = true });
 
-    const posts = try zeldi.arena.alloc(SkeletonPost, rows.len);
-    for (rows, posts) |row, *p| p.* = .{ .post = row[0].string };
+    const posts = try zeldi.arena.alloc(SkeletonPost, page.entries.len);
+    for (page.entries, posts) |e, *p| p.* = .{ .post = e.value };
     var cursor: []const u8 = feed.eof;
-    if (rows.len > 0) {
-        const last = rows[rows.len - 1];
-        const buf = try zeldi.arena.alloc(u8, 32 + last[1].string.len);
-        cursor = try feed.formatCursor(buf, .{ .indexed_at_ms = last[2].integer, .cid = last[1].string });
+    if (page.entries.len > 0) {
+        const at = feed.parsePostKey(page.entries[page.entries.len - 1].key) catch return error.CorruptStore;
+        const buf = try zeldi.arena.alloc(u8, 32 + at.cid.len);
+        cursor = try feed.formatCursor(buf, at);
     }
     return zeldi.respondJson(200, Skeleton{ .cursor = cursor, .feed = posts });
 }
