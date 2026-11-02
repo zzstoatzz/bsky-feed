@@ -10,8 +10,9 @@ machine is a feed that falls behind jetstream.
 
 ## what runs
 
-prod runs v10, image `gate-57c40cf`: this repo at `57c40cf`, zeldi
-`6416511`. the feeds' databases live in `/data/tenants/feeds/`; the first
+prod runs image `gate-80797ac`: this repo at `80797ac`, zeldi `8faaae1`
+(abi 2, kv stores). before it, v10 ran `gate-57c40cf`: this repo at
+`57c40cf`, zeldi `6416511`. the feeds' databases live in `/data/tenants/feeds/`; the first
 start of `6416511` moved them from `/data/cells/`, so going back to a build
 before it means restoring the volume snapshot taken before v10
 (`vs_qZoezPRZyZ6KU5y9gmoz`).
