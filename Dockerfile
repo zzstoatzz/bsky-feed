@@ -18,4 +18,4 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY --from=build /src/zig-out zig-out
 COPY zeldi.json zeldi.json
-CMD ["/app/zig-out/bin/zeldi", "dev", "--live", "--listen", "0.0.0.0", "--data", "/data", "--config", "zeldi.json"]
+CMD ["/app/zig-out/bin/zeldi", "dev", "--live", "--listen", "0.0.0.0", "--data", "/data", "--config", "zeldi.json", "--operator-port", "9090"]

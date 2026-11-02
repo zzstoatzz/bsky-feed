@@ -10,35 +10,44 @@ var last_log_path: ?[]const u8 = null;
 pub const Server = struct {
     child: std.process.Child,
     log: Io.File,
-    /// `http://127.0.0.1:<port>`, the port the server bound.
+    /// `http://127.0.0.1:<port>`, the public port the server bound.
     base: []const u8,
+    /// the same for its operator port, which serves /debug/cells.
+    operator: []const u8,
 
-    /// starts zeldi on a port the kernel picks (`--port 0`, appended to
-    /// `argv`) and waits for it to log which one. a port picked here and
-    /// reused across restarts could be taken in between by any other test's
-    /// listener, since a freed ephemeral port goes back to the shared pool.
-    /// `log_path` must outlive the test run.
+    /// starts zeldi on ports the kernel picks (`--port 0 --operator-port 0`,
+    /// appended to `argv`) and waits for it to log which. a port picked here
+    /// and reused across restarts could be taken in between by any other
+    /// test's listener, since a freed ephemeral port goes back to the shared
+    /// pool. `log_path` must outlive the test run.
     pub fn start(io: Io, arena: std.mem.Allocator, argv: []const []const u8, log_path: []const u8) !Server {
         const log = try Io.Dir.cwd().createFile(io, log_path, .{});
         errdefer log.close(io);
-        const full = try std.mem.concat(arena, []const u8, &.{ argv, &.{ "--port", "0" } });
+        const full = try std.mem.concat(arena, []const u8, &.{ argv, &.{ "--port", "0", "--operator-port", "0" } });
         var child = try std.process.spawn(io, .{ .argv = full, .stdout = .ignore, .stderr = .{ .file = log } });
         errdefer child.kill(io);
         last_log_path = log_path;
-        const marker = "listening on http://127.0.0.1:";
         for (0..600) |_| {
             const text = try Io.Dir.cwd().readFileAlloc(io, log_path, arena, .limited(16 * 1024 * 1024));
-            if (std.mem.indexOf(u8, text, marker)) |at| {
-                const digits = text[at + marker.len ..];
-                const end = std.mem.indexOfNone(u8, digits, "0123456789") orelse digits.len;
-                if (end > 0 and end < digits.len) {
-                    const port = try std.fmt.parseInt(u16, digits[0..end], 10);
-                    return .{ .child = child, .log = log, .base = try std.fmt.allocPrint(arena, "http://127.0.0.1:{d}", .{port}) };
-                }
-            }
+            const public = portAfter(text, "(zeldi): listening on http://127.0.0.1:");
+            const operator = portAfter(text, "(zeldi): operator listening on http://127.0.0.1:");
+            if (public != null and operator != null) return .{
+                .child = child,
+                .log = log,
+                .base = try std.fmt.allocPrint(arena, "http://127.0.0.1:{d}", .{public.?}),
+                .operator = try std.fmt.allocPrint(arena, "http://127.0.0.1:{d}", .{operator.?}),
+            };
             try io.sleep(Io.Duration.fromMilliseconds(50), .awake);
         }
         return error.ServerNotListening;
+    }
+
+    /// the port in the complete log line that `marker` starts.
+    fn portAfter(text: []const u8, marker: []const u8) ?u16 {
+        const at = std.mem.indexOf(u8, text, marker) orelse return null;
+        const digits = text[at + marker.len ..];
+        const end = std.mem.indexOfScalar(u8, digits, '\n') orelse return null;
+        return std.fmt.parseInt(u16, digits[0..end], 10) catch null;
     }
 
     pub fn stop(s: *Server, io: Io) void {

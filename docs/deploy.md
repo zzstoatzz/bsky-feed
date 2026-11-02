@@ -10,20 +10,25 @@ machine is a feed that falls behind jetstream.
 
 ## next deploy
 
-prod runs v5, which predates the egress address checks. from main at
-`0713831` on, a cell's `subscribe` url has to name a host on that cell's
-`egress` list, so spongebob's entry in `zeldi.json` lists its four
-jetstream hosts, and that config ships in the image with the binary. the
-mirror cells already list their source. nothing else in the prod config
-changes, and `--dev-loopback-egress` stays off, as it must on any machine that
-isn't a test.
+prod runs v8, zeldi `4f00229`. this config is for zeldi `406f83f` and later,
+and it changes four things the next deploy carries:
 
-the new per-cell limits take their defaults, which the feeds e2e passes on the
-fixture. the one that can bite on live traffic is the inbox: 16 MiB of waiting
-batches, against batch windows of up to 8 MiB. a spongebob that falls two
-windows behind now drops the next one instead of queueing it. after the
-deploy, watch `inbox_rejected` and `traps` on `/debug/cells`; both should stay
-at 0.
+- the cells run in a second process, `zeldi runner`, which the zeldi process
+  starts, watches by heartbeat and restarts if it dies. `zeldi cells 9090`
+  lists it under `runners`, with its pid and how often it restarted.
+
+- `zeldi.json` is one tenant, `feeds`, assigned `feed.zzstoatzz.io` and `*`.
+  `*` keeps every request whose Host isn't `feed.zzstoatzz.io`, such as fly's
+  health check or `zeldi.fly.dev`, routed to the front cell as before.
+- the front cell has no `"front": true`; any cell may call the others in its
+  tenant now, and the host refuses calls that would cycle.
+- `/debug/cells` is gone from the public port. the image starts zeldi with
+  `--operator-port 9090`, bound to the machine's loopback, so read it with
+  `fly ssh console -a zeldi -C "/app/zig-out/bin/zeldi cells 9090"`.
+
+nothing about the cells, their egress or their data changes. after the
+deploy, every cell should show `disabled` false and `traps`,
+`inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0.
 
 ## before a deploy
 
@@ -44,10 +49,11 @@ origins, and goes ahead only if that holds:
    docker run --rm -d --name zeldi-gate --platform linux/amd64 -p 18080:8080 \
      -v "$PWD/testdata:/testdata:ro" registry.fly.io/zeldi:gate-<sha> \
      /app/zig-out/bin/zeldi dev --fixture /testdata/jetstream.ndjson \
-     --listen 0.0.0.0 --data /tmp/data --config zeldi.json
+     --listen 0.0.0.0 --data /tmp/data --config zeldi.json --operator-port 9090
    ```
 3. after the mirrors' first poll (a minute covers `poll_ms`),
-   `curl localhost:18080/debug/cells` must show every cell with `traps`,
+   `docker exec zeldi-gate /app/zig-out/bin/zeldi cells 9090` must show every
+   cell with `disabled` false and `traps`,
    `inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0, each mirror
    with calls past its first, and `docker logs zeldi-gate` no `panic` and no
    egress refusal. then `docker rm -f zeldi-gate`.

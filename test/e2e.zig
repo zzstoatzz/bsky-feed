@@ -44,8 +44,12 @@ pub fn main(init: std.process.Init) !void {
 
     const config = try std.fmt.allocPrint(arena, "{s}/zeldi.json", .{dir});
     try harness.writeJson(io, arena, config, .{
-        .cells = .{.{ .name = "feed:spongebob", .wasm = wasm, .egress = jetstreams, .config = cell_config }},
-        .routes = .{.{ .prefix = "/", .cell = "feed:spongebob" }},
+        .tenants = .{.{
+            .name = "feeds",
+            .hosts = .{"*"},
+            .cells = .{.{ .name = "feed:spongebob", .wasm = wasm, .egress = jetstreams, .config = cell_config }},
+            .routes = .{.{ .prefix = "/", .cell = "feed:spongebob" }},
+        }},
     });
     const data = try std.fmt.allocPrint(arena, "{s}/data", .{dir});
     const fixture = try std.fmt.allocPrint(arena, "{s}/jetstream.ndjson", .{dir});
@@ -60,7 +64,7 @@ pub fn main(init: std.process.Init) !void {
         var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/first.log", .{dir}));
         defer server.stop(io);
         const base = server.base;
-        try waitReady(io, &client, arena, base);
+        try waitReady(io, &client, arena, server.operator);
 
         try expectStatus(&client, arena, try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.getFeedSkeleton", .{base}), .bad_request);
         try expectStatus(&client, arena, try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.getFeedSkeleton?feed={s}&cursor=nope", .{ base, feed_param }), .bad_request);
@@ -77,7 +81,7 @@ pub fn main(init: std.process.Init) !void {
         var server = try Server.start(io, arena, &argv, log_path);
         defer server.stop(io);
         const base = server.base;
-        try waitReady(io, &client, arena, base);
+        try waitReady(io, &client, arena, server.operator);
         try expectFeed(try pageAll(&client, arena, base, 2));
         const log_bytes = try Io.Dir.cwd().readFileAlloc(io, log_path, arena, .limited(1 << 20));
         if (std.mem.indexOf(u8, log_bytes, "from cursor 1793560000000012") == null) {
@@ -186,17 +190,16 @@ fn manyCells(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
     const specs = try arena.alloc(Spec, many_cells);
     for (specs, 0..) |*s, i| s.* = .{ .name = try std.fmt.allocPrint(arena, "feed:many{d}", .{i}), .wasm = wasm };
     const config = try std.fmt.allocPrint(arena, "{s}/many.json", .{dir});
-    try harness.writeJson(io, arena, config, .{ .cells = specs });
+    try harness.writeJson(io, arena, config, .{ .tenants = .{.{ .name = "many", .cells = specs }} });
     const data = try std.fmt.allocPrint(arena, "{s}/many-data", .{dir});
     const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture };
 
     var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/many.log", .{dir}));
     defer server.stop(io);
-    const base = server.base;
-    try waitReady(io, client, arena, base);
+    try waitReady(io, client, arena, server.operator);
 
     const Stats = struct { cells: []const struct { name: []const u8, calls: u64, traps: u64 } };
-    const url = try std.fmt.allocPrint(arena, "{s}/debug/cells", .{base});
+    const url = try std.fmt.allocPrint(arena, "{s}/debug/cells", .{server.operator});
     // a slow machine is fine; a machine where calls stop climbing is not. so
     // the test fails after 5s without progress, not after 5s in total.
     var last_calls: u64 = 0;
@@ -289,30 +292,37 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
     const all_paths = unchanged_paths ++ listing_paths;
     const before = blk: {
         const config = try std.fmt.allocPrint(arena, "{s}/alone.json", .{dir});
-        try harness.writeJson(io, arena, config, .{ .cells = .{spongebob}, .routes = .{.{ .prefix = "/", .cell = "feed:spongebob" }} });
+        try harness.writeJson(io, arena, config, .{ .tenants = .{.{
+            .name = "feeds",
+            .hosts = .{"*"},
+            .cells = .{spongebob},
+            .routes = .{.{ .prefix = "/", .cell = "feed:spongebob" }},
+        }} });
         const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture };
         var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/alone.log", .{dir}));
         defer server.stop(io);
         const base = server.base;
-        try waitReady(io, client, arena, base);
+        try waitReady(io, client, arena, server.operator);
         try expectFeed(try pageAll(client, arena, base, 3));
         break :blk try seeAll(client, arena, base, &all_paths);
     };
 
     {
         const config = try std.fmt.allocPrint(arena, "{s}/front-only.json", .{dir});
-        try harness.writeJson(io, arena, config, .{
+        try harness.writeJson(io, arena, config, .{ .tenants = .{.{
+            .name = "feeds",
+            .hosts = .{"*"},
             .cells = .{
-                .{ .name = "feed:front", .wasm = wasms.front, .front = true, .config = .{ .hostname = "smoke.test", .feeds = .{.{ .uri = feed_uri, .cell = "feed:spongebob" }} } },
+                .{ .name = "feed:front", .wasm = wasms.front, .config = .{ .hostname = "smoke.test", .feeds = .{.{ .uri = feed_uri, .cell = "feed:spongebob" }} } },
                 spongebob,
             },
             .routes = .{.{ .prefix = "/", .cell = "feed:front" }},
-        });
+        }} });
         const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture };
         var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/front-only.log", .{dir}));
         defer server.stop(io);
         const base = server.base;
-        try waitReady(io, client, arena, base);
+        try waitReady(io, client, arena, server.operator);
         try expectSame(&all_paths, before, try seeAll(client, arena, base, &all_paths));
     }
 
@@ -336,9 +346,11 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
             } };
         }
     }.of;
-    try harness.writeJson(io, arena, config, .{
+    try harness.writeJson(io, arena, config, .{ .tenants = .{.{
+        .name = "feeds",
+        .hosts = .{"*"},
         .cells = .{
-            .{ .name = "feed:front", .wasm = wasms.front, .front = true, .config = .{ .hostname = "smoke.test", .feeds = .{
+            .{ .name = "feed:front", .wasm = wasms.front, .config = .{ .hostname = "smoke.test", .feeds = .{
                 .{ .uri = feed_uri, .cell = "feed:spongebob" },
                 .{ .uri = mirrorUri("live-mi"), .cell = "feed:live-mi" },
                 .{ .uri = mirrorUri("live-desk"), .cell = "feed:live-desk" },
@@ -350,12 +362,12 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
             mirror(wasms.mirror, endpoint, "live-busy", "busy", 100),
         },
         .routes = .{.{ .prefix = "/", .cell = "feed:front" }},
-    });
+    }} });
     const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture, "--dev-loopback-egress" };
     var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/full.log", .{dir}));
     defer server.stop(io);
     const base = server.base;
-    try waitReady(io, client, arena, base);
+    try waitReady(io, client, arena, server.operator);
     try expectSame(&unchanged_paths, before[0..unchanged_paths.len], try seeAll(client, arena, base, &unchanged_paths));
 
     _, const described = try get(client, arena, try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.describeFeedGenerator", .{base}));
