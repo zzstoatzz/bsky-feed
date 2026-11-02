@@ -10,8 +10,15 @@ machine is a feed that falls behind jetstream.
 
 ## what runs
 
-prod runs zeldi `1c1396e`, which reports each cell's commit count and p50/p99
-commit time in `zeldi cells 9090`. before it, zeldi `66d86de`, whose stores read tables by block range. its
+prod runs zeldi `1b53f91`: every cell commits through one node log in
+`/data/node`, whose windows each take one sync for every commit that queued
+during the last. zeldi `7ddca5a` (`gate-27c9b01`) moved prod onto it: its first
+start folded each cell's own log segments into its tables and deleted them,
+and `1b53f91` drops that fold. the snapshot from just before `7ddca5a` is
+`vs_7PR9g8DPGP31ceaY7BvaL`; an image before `7ddca5a` would lose every commit
+since, so going back that far means restoring it. before it,
+zeldi `1c1396e`, which reports each cell's commit count and p50/p99 commit time
+in `zeldi cells 9090`. before that, zeldi `66d86de`, whose stores read tables by block range. its
 first image (`gate-8efbb75`) rewrote each cell's store into that format at
 start, kept the old one at `cells/<cell>.v1`, and was preceded by snapshot
 `vs_njlYzP4jqjNmtp0lD61mG`. before it, `gate-80797ac` ran zeldi `8faaae1`
