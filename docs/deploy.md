@@ -60,6 +60,22 @@ origins, and goes ahead only if that holds:
    egress refusal. then `docker rm -f zeldi-gate`.
 4. deploy that same image, so prod runs what was checked:
    `fly deploy --image registry.fly.io/zeldi:gate-<sha> -a zeldi`
+5. check that it is running. flyctl's own wait can report a running machine
+   as suspended or stopped, time out, and still exit 0, so neither its
+   output nor its exit code says whether the deploy took. the deploy took
+   when the machine runs the gated image:
+   ```bash
+   fly machines list -a zeldi --json \
+     | jq -e '.[] | select(.state == "started" and .image_ref.tag == "gate-<sha>")'
+   ```
+   and every feed answers:
+   ```bash
+   for f in n8 live-desk live-natl live-mi; do
+     curl -s -o /dev/null -w "$f %{http_code}\n" \
+       "https://feed.zzstoatzz.io/xrpc/app.bsky.feed.getFeedSkeleton?feed=at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/$f"
+   done
+   ```
+   each must print 200. if either check fails, roll back.
 
 record `fly releases -a zeldi` and the running image first, so a rollback is
 `fly deploy --image <that image> -a zeldi`.
