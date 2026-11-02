@@ -8,26 +8,23 @@ fly's builder, so the zig build never runs on a home machine.
 the machine never stops on its own (`auto_stop_machines = "off"`): a stopped
 machine is a feed that falls behind jetstream.
 
-## next deploy
+## what runs
 
-prod runs v9, zeldi `406f83f`. this pin is zeldi `6416511`, and the next
-deploy carries:
+prod runs v10, image `gate-57c40cf`: this repo at `57c40cf`, zeldi
+`6416511`. the feeds' databases live in `/data/tenants/feeds/`; the first
+start of `6416511` moved them from `/data/cells/`, so going back to a build
+before it means restoring the volume snapshot taken before v10
+(`vs_qZoezPRZyZ6KU5y9gmoz`).
 
-- the feeds' databases move from `/data/cells/` to `/data/tenants/feeds/` at
-  the first start, each checkpointed into itself and renamed whole; the log
-  names every move, and a second start finds nothing to move. take a volume
-  snapshot first (`fly volumes snapshots create <vol>`), so going back to
-  `406f83f` is a restore, since that build only reads `/data/cells/`.
-- the runner jails itself: its own mount, network, pid and ipc namespaces
-  with only `/data/tenants/feeds` and its modules mounted, uid 100000, no
-  capabilities, and a seccomp filter. `/proc/<runner>/status` shows
-  `NoNewPrivs: 1` and `Seccomp: 2` on the jailed process.
-- it runs in a `zeldi.feeds` cgroup in each of fly's v1 memory, pids and cpu
-  hierarchies: 128 MiB, 64 threads, one cpu. the supervisor logs
-  `runners run without cgroup limits` if it couldn't set them.
+the runner jails itself: its own mount, network, pid and ipc namespaces with
+only `/data/tenants/feeds` and its modules mounted, uid 100000, no
+capabilities, and a seccomp filter; `/proc/<runner>/status` shows
+`NoNewPrivs: 1` and `Seccomp: 2` on the jailed process. it runs in a
+`zeldi.feeds` cgroup in each of fly's v1 memory, pids and cpu hierarchies
+(128 MiB, 64 threads, one cpu); the supervisor logs `runners run without
+cgroup limits` if it couldn't set them.
 
-nothing about the cells, their egress or their config changes. after the
-deploy, every cell should show `disabled` false and `traps`,
+after a deploy, every cell should show `disabled` false and `traps`,
 `inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0, and
 `zeldi cells 9090` lists the feeds runner under `runners`.
 
@@ -37,27 +34,31 @@ deploy, every cell should show `disabled` false and `traps`,
 against a local stand-in, so it never reaches a real https origin. v6 (zeldi
 `be26d5b`) passed it and still aborted in prod on the mirrors' first poll of
 api.graze.social, in tls setup the tests never ran. so a deploy also runs the
-image it will ship, on this machine, against the fixture and the real https
-origins, and goes ahead only if that holds:
+image it will ship, on a fly machine of its own, against the fixture and the
+real https origins, and goes ahead only if that holds:
 
 1. build and push the image on fly's builder without deploying it, under a
    label of its own:
    `fly deploy --remote-only --build-only --push --image-label gate-<sha> -a zeldi`
-2. `fly auth docker`, then run it on the fixture instead of jetstream (the
-   mirrors still make their real https GETs to api.graze.social; that is plain
-   https, not a firehose, so it is fine on a home network):
+2. run it on a scratch app, never `zeldi`, on the fixture instead of jetstream.
+   the jail needs a real linux kernel: under docker on an arm mac the amd64
+   image is emulated, and the runner's capset fails. the mirrors still make
+   their real https GETs to api.graze.social, which is plain https, not a
+   firehose:
    ```bash
-   docker run --rm -d --name zeldi-gate --platform linux/amd64 -p 18080:8080 \
-     -v "$PWD/testdata:/testdata:ro" registry.fly.io/zeldi:gate-<sha> \
+   fly apps create zeldi-gate -o personal
+   fly machine run registry.fly.io/zeldi:gate-<sha> -a zeldi-gate --region ord \
+     --vm-size shared-cpu-1x --vm-memory 256 --restart no --name gate \
+     --file-local /testdata/jetstream.ndjson=testdata/jetstream.ndjson -- \
      /app/zig-out/bin/zeldi dev --fixture /testdata/jetstream.ndjson \
      --listen 0.0.0.0 --data /tmp/data --config zeldi.json --operator-port 9090
    ```
 3. after the mirrors' first poll (a minute covers `poll_ms`),
-   `docker exec zeldi-gate /app/zig-out/bin/zeldi cells 9090` must show every
-   cell with `disabled` false and `traps`,
-   `inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0, each mirror
-   with calls past its first, and `docker logs zeldi-gate` no `panic` and no
-   egress refusal. then `docker rm -f zeldi-gate`.
+   `fly ssh console -a zeldi-gate -C "/app/zig-out/bin/zeldi cells 9090"` must
+   show every cell with `disabled` false and `traps`, `inbox_rejected`,
+   `backoff_rejected` and `reinstantiations` at 0, each mirror with calls past
+   its first, and `fly logs -a zeldi-gate --no-tail` no `panic`, no egress
+   refusal and no `runner exited`. then `fly apps destroy zeldi-gate`.
 4. deploy that same image, so prod runs what was checked:
    `fly deploy --image registry.fly.io/zeldi:gate-<sha> -a zeldi`
 5. check that it is running. flyctl's own wait can report a running machine
