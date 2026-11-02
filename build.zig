@@ -19,27 +19,6 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&install.step);
     }
 
-    // one-off: moves the SQLite databases of zeldi abi 1 into each cell's
-    // store. it goes once prod has run it.
-    const sqlite_dep = b.dependency("sqlite", .{});
-    const sqlite = b.addLibrary(.{ .name = "sqlite3", .root_module = b.createModule(.{ .target = target, .optimize = .ReleaseSafe, .link_libc = true }) });
-    sqlite.root_module.addCSourceFile(.{ .file = sqlite_dep.path("sqlite3.c"), .flags = &.{ "-DSQLITE_THREADSAFE=0", "-DSQLITE_OMIT_LOAD_EXTENSION" } });
-    const sqlite_h = b.addTranslateC(.{ .root_source_file = sqlite_dep.path("sqlite3.h"), .target = target, .optimize = .ReleaseSafe });
-    const import = b.addExecutable(.{ .name = "import", .root_module = b.createModule(.{
-        .root_source_file = b.path("tools/import.zig"),
-        .target = target,
-        .optimize = .ReleaseSafe,
-        .link_libc = true,
-        .imports = &.{
-            .{ .name = "zkv", .module = b.dependency("zkv", .{ .target = target, .optimize = .ReleaseSafe }).module("zkv") },
-            .{ .name = "sqlite", .module = sqlite_h.createModule() },
-            .{ .name = "feed", .module = b.createModule(.{ .root_source_file = b.path("cells/feed.zig") }) },
-            .{ .name = "items", .module = b.createModule(.{ .root_source_file = b.path("cells/items.zig") }) },
-        },
-    }) });
-    import.root_module.linkLibrary(sqlite);
-    b.installArtifact(import);
-
     const test_step = b.step("test", "run the unit tests and the e2e test");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("cells/tests.zig"),
