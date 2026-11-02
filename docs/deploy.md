@@ -10,7 +10,7 @@ machine is a feed that falls behind jetstream.
 
 ## what runs
 
-prod runs zeldi `1b53f91`: every cell commits through one node log in
+prod runs zeldi `e7b093d`, whose runner names any syscall its filter refuses before it exits; every cell commits through one node log in
 `/data/node`, whose windows each take one sync for every commit that queued
 during the last. zeldi `7ddca5a` (`gate-27c9b01`) moved prod onto it: its first
 start folded each cell's own log segments into its tables and deleted them,
