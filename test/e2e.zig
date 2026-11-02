@@ -35,6 +35,12 @@ pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
     if (args.len != 7) return error.Usage;
+    // zig build sets NO_COLOR for a run step, and with it zeldi's log never
+    // asks whether stderr is a tty; deployed, it does, under the jail.
+    var environ = try init.environ_map.clone(arena);
+    _ = environ.swapRemove("NO_COLOR");
+    _ = environ.swapRemove("CLICOLOR_FORCE");
+    harness.environ = &environ;
     const zeldi, const wasm, const base_fixture = .{ args[1], args[2], args[3] };
     const front_wasm, const mirror_wasm, const graze_dir = .{ args[4], args[5], args[6] };
 

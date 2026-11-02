@@ -24,7 +24,7 @@ pub const Server = struct {
         const log = try Io.Dir.cwd().createFile(io, log_path, .{});
         errdefer log.close(io);
         const full = try std.mem.concat(arena, []const u8, &.{ argv, &.{ "--port", "0", "--operator-port", "0" } });
-        var child = try std.process.spawn(io, .{ .argv = full, .stdout = .ignore, .stderr = .{ .file = log } });
+        var child = try std.process.spawn(io, .{ .argv = full, .stdout = .ignore, .stderr = .{ .file = log }, .environ_map = environ });
         errdefer child.kill(io);
         last_log_path = log_path;
         for (0..600) |_| {
@@ -59,6 +59,10 @@ pub const Server = struct {
 /// prints the tail of the last server's log, so a failure in a phase that
 /// boots a server says what that server did. call it before the scratch
 /// directory holding the log is deleted.
+/// the environment servers start with, when set: the test's own, less what
+/// `zig build` adds that a deployed zeldi doesn't see.
+pub var environ: ?*const std.process.Environ.Map = null;
+
 pub fn printLastLog(io: Io, arena: std.mem.Allocator) void {
     const path = last_log_path orelse return;
     const bytes = Io.Dir.cwd().readFileAlloc(io, path, arena, .limited(1 << 20)) catch return;
