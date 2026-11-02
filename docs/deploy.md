@@ -10,8 +10,11 @@ machine is a feed that falls behind jetstream.
 
 ## what runs
 
-prod runs image `gate-80797ac`: this repo at `80797ac`, zeldi `8faaae1`
-(abi 2, kv stores). before it, v10 ran `gate-57c40cf`: this repo at
+prod runs zeldi `66d86de`, whose stores read tables by block range. its
+first image (`gate-8efbb75`) rewrote each cell's store into that format at
+start, kept the old one at `cells/<cell>.v1`, and was preceded by snapshot
+`vs_njlYzP4jqjNmtp0lD61mG`. before it, `gate-80797ac` ran zeldi `8faaae1`
+(abi 2, whole tables). before it, v10 ran `gate-57c40cf`: this repo at
 `57c40cf`, zeldi `6416511`. the feeds' databases live in `/data/tenants/feeds/`; the first
 start of `6416511` moved them from `/data/cells/`, so going back to a build
 before it means restoring the volume snapshot taken before v10

@@ -8,19 +8,10 @@
             .url = "https://tangled.org/zzstoatzz.io/zeldi/archive/66d86de.tar.gz",
             .hash = "zeldi-0.0.0-XaMbKTeaBACb5bGsgxojfs_hxq-dOAP1vW1lRXp-hNV4",
         },
-        .zkv_v1 = .{
-            .url = "https://tangled.org/zzstoatzz.io/zkv/archive/862bfc1e10f808c724c331ba33289d99877fb388.tar.gz",
-            .hash = "zkv-0.0.0-2lSvYGccAQBYngGa5LMGQrW8A8x8yfLUIQOVFHnAtBLL",
-        },
-        .zkv = .{
-            .url = "https://tangled.org/zzstoatzz.io/zkv/archive/9425ef6baf262be859107e607d272b9ebfc62d84.tar.gz",
-            .hash = "zkv-0.0.0-2lSvYK1FAQD98p--EsNB35mFJtUCZahDglqOXBrpfRux",
-        },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "cells",
-        "tools",
     },
 }

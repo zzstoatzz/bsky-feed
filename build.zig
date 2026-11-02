@@ -19,19 +19,6 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&install.step);
     }
 
-    // one-off: rewrites the cells' stores from zkv's whole-table format into
-    // its ranged one. it goes once prod has run it.
-    const rewrite = b.addExecutable(.{ .name = "rewrite", .root_module = b.createModule(.{
-        .root_source_file = b.path("tools/rewrite.zig"),
-        .target = target,
-        .optimize = .ReleaseSafe,
-        .imports = &.{
-            .{ .name = "zkv_v1", .module = b.dependency("zkv_v1", .{ .target = target, .optimize = .ReleaseSafe }).module("zkv") },
-            .{ .name = "zkv", .module = b.dependency("zkv", .{ .target = target, .optimize = .ReleaseSafe }).module("zkv") },
-        },
-    }) });
-    b.installArtifact(rewrite);
-
     const test_step = b.step("test", "run the unit tests and the e2e test");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
         .root_source_file = b.path("cells/tests.zig"),
