@@ -10,25 +10,26 @@ machine is a feed that falls behind jetstream.
 
 ## next deploy
 
-prod runs v8, zeldi `4f00229`. this config is for zeldi `406f83f` and later,
-and it changes four things the next deploy carries:
+prod runs v9, zeldi `406f83f`. this pin is zeldi `6416511`, and the next
+deploy carries:
 
-- the cells run in a second process, `zeldi runner`, which the zeldi process
-  starts, watches by heartbeat and restarts if it dies. `zeldi cells 9090`
-  lists it under `runners`, with its pid and how often it restarted.
+- the feeds' databases move from `/data/cells/` to `/data/tenants/feeds/` at
+  the first start, each checkpointed into itself and renamed whole; the log
+  names every move, and a second start finds nothing to move. take a volume
+  snapshot first (`fly volumes snapshots create <vol>`), so going back to
+  `406f83f` is a restore, since that build only reads `/data/cells/`.
+- the runner jails itself: its own mount, network, pid and ipc namespaces
+  with only `/data/tenants/feeds` and its modules mounted, uid 100000, no
+  capabilities, and a seccomp filter. `/proc/<runner>/status` shows
+  `NoNewPrivs: 1` and `Seccomp: 2` on the jailed process.
+- it runs in a `zeldi.feeds` cgroup in each of fly's v1 memory, pids and cpu
+  hierarchies: 128 MiB, 64 threads, one cpu. the supervisor logs
+  `runners run without cgroup limits` if it couldn't set them.
 
-- `zeldi.json` is one tenant, `feeds`, assigned `feed.zzstoatzz.io` and `*`.
-  `*` keeps every request whose Host isn't `feed.zzstoatzz.io`, such as fly's
-  health check or `zeldi.fly.dev`, routed to the front cell as before.
-- the front cell has no `"front": true`; any cell may call the others in its
-  tenant now, and the host refuses calls that would cycle.
-- `/debug/cells` is gone from the public port. the image starts zeldi with
-  `--operator-port 9090`, bound to the machine's loopback, so read it with
-  `fly ssh console -a zeldi -C "/app/zig-out/bin/zeldi cells 9090"`.
-
-nothing about the cells, their egress or their data changes. after the
+nothing about the cells, their egress or their config changes. after the
 deploy, every cell should show `disabled` false and `traps`,
-`inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0.
+`inbox_rejected`, `backoff_rejected` and `reinstantiations` at 0, and
+`zeldi cells 9090` lists the feeds runner under `runners`.
 
 ## before a deploy
 
