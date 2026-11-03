@@ -36,10 +36,10 @@
           "name": "feed:spongebob",
           "wasm": "zig-out/cells/spongebob.wasm",
           "egress": [
-            "jetstream1.us-east.bsky.network",
-            "jetstream2.us-east.bsky.network",
-            "jetstream1.us-west.bsky.network",
-            "jetstream2.us-west.bsky.network"
+            "wss://jetstream1.us-east.bsky.network",
+            "wss://jetstream2.us-east.bsky.network",
+            "wss://jetstream1.us-west.bsky.network",
+            "wss://jetstream2.us-west.bsky.network"
           ],
           "config": {
             "hostname": "feed.zzstoatzz.io",
@@ -52,9 +52,11 @@
           "name": "feed:live-desk",
           "wasm": "zig-out/cells/feeds-mirror.wasm",
           "egress": [
-            "api.graze.social"
+            {
+              "origin": "https://api.graze.social",
+              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
+            }
           ],
-          "user_agent": "zeldi feeds (+https://feed.zzstoatzz.io)",
           "config": {
             "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-desk",
             "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/desk-natl",
@@ -66,9 +68,11 @@
           "name": "feed:live-natl",
           "wasm": "zig-out/cells/feeds-mirror.wasm",
           "egress": [
-            "api.graze.social"
+            {
+              "origin": "https://api.graze.social",
+              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
+            }
           ],
-          "user_agent": "zeldi feeds (+https://feed.zzstoatzz.io)",
           "config": {
             "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-natl",
             "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/races-natl",
@@ -80,9 +84,11 @@
           "name": "feed:live-mi",
           "wasm": "zig-out/cells/feeds-mirror.wasm",
           "egress": [
-            "api.graze.social"
+            {
+              "origin": "https://api.graze.social",
+              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
+            }
           ],
-          "user_agent": "zeldi feeds (+https://feed.zzstoatzz.io)",
           "config": {
             "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-mi",
             "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/races-mi",

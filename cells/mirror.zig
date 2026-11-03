@@ -1,5 +1,5 @@
 //! a feed that mirrors another generator's skeleton: polls its
-//! getFeedSkeleton with http_get, keeps each post with when it was first seen,
+//! getFeedSkeleton with fetch, keeps each post with when it was first seen,
 //! and serves them newest first. one cell per mirrored feed.
 
 const std = @import("std");
@@ -128,7 +128,7 @@ fn fetchPage(cursor: ?[]const u8) !Page {
         try w.writeAll("&cursor=");
         try percentEncode(w, c);
     }
-    const res = try zeldi.httpGet(url.written());
+    const res = try zeldi.fetch(.{ .url = url.written() });
     if (res.status != 200) {
         zeldi.logf("source answered {d}", .{res.status});
         return error.SourceStatus;

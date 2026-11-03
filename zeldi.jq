@@ -50,8 +50,7 @@ def everything($src):
       + [$mirrors[] | {
           name: "feed:\(.rkey)",
           wasm: "zig-out/cells/feeds-mirror.wasm",
-          egress: [.endpoint | ltrimstr("https://")],
-          user_agent: "zeldi feeds (+https://feed.zzstoatzz.io)",
+          egress: [{origin: .endpoint, headers: {"user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)"}}],
           config: {
             feed: "at://\(publisher)/app.bsky.feed.generator/\(.rkey)",
             source: .source,

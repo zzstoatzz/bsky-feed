@@ -14,7 +14,7 @@ checks that on one sqlite file.
 ## mirror feeds
 
 `cells/mirror.zig` is a second cell kind in the feeds app: it mirrors
-another generator's skeleton with `http_get`, keeps each post with when it
+another generator's skeleton with `fetch`, keeps each post with when it
 first saw it (48 hours), and serves them newest first. the first three mirror
 graze's midterms feeds (`races-natl`, `desk-natl`, `races-mi` as `live-natl`,
 `live-desk`, `live-mi`). `zeldi.jq` builds the app config from

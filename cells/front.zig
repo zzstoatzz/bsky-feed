@@ -37,11 +37,10 @@ fn start(raw_config: []const u8) !void {
 }
 
 export fn on_fetch(ptr: u32, len: u32) u64 {
-    const raw = zeldi.input(ptr, len);
-    return route(raw, zeldi.Request.parse(raw)) catch zeldi.respond(500, "text/plain", "internal error");
+    return route(zeldi.Request.parse(zeldi.input(ptr, len))) catch zeldi.respond(500, "text/plain", "internal error");
 }
 
-fn route(raw: []const u8, req: zeldi.Request) !u64 {
+fn route(req: zeldi.Request) !u64 {
     const path = req.path;
     if (std.mem.eql(u8, path, "/")) return generator.directory(config.hostname, uris);
     if (std.mem.eql(u8, path, "/.well-known/did.json")) return generator.didDocument(config.hostname, service_did);
@@ -50,11 +49,12 @@ fn route(raw: []const u8, req: zeldi.Request) !u64 {
         const uri = req.param("feed") orelse return zeldi.respond(400, "text/plain", "Feed parameter missing");
         for (config.feeds) |f| {
             if (!std.mem.eql(u8, f.uri, uri)) continue;
-            const res = zeldi.call(f.cell, raw) catch {
+            const url = try std.fmt.allocPrint(zeldi.arena, "cell://{s}{s}", .{ f.cell, req.target });
+            const res = zeldi.fetch(.{ .url = url }) catch {
                 zeldi.logf("{s} did not answer for {s}", .{ f.cell, f.uri });
                 return zeldi.respond(502, "text/plain", "feed unavailable");
             };
-            return zeldi.respond(res.status, res.content_type, res.body);
+            return zeldi.respond(res.status, res.header("content-type") orelse "application/json", res.body);
         }
         return zeldi.respond(400, "text/plain", "Unsupported algorithm");
     }

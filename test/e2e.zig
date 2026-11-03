@@ -103,10 +103,10 @@ pub fn main(init: std.process.Init) !void {
 const cell_config = .{ .hostname = "smoke.test", .feeds = .{feed_uri} };
 /// the hosts spongebob subscribes to by default; with --fixture it never connects.
 const jetstreams: []const []const u8 = &.{
-    "jetstream1.us-east.bsky.network",
-    "jetstream2.us-east.bsky.network",
-    "jetstream1.us-west.bsky.network",
-    "jetstream2.us-west.bsky.network",
+    "wss://jetstream1.us-east.bsky.network",
+    "wss://jetstream2.us-east.bsky.network",
+    "wss://jetstream1.us-west.bsky.network",
+    "wss://jetstream2.us-west.bsky.network",
 };
 
 /// the rest of a feed generator: the directory page, did document, and describe.
@@ -341,10 +341,11 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
     const endpoint = try std.fmt.allocPrint(arena, "http://127.0.0.1:{d}", .{graze.socket.address.getPort()});
 
     const config = try std.fmt.allocPrint(arena, "{s}/full.json", .{dir});
-    const Mirror = struct { name: []const u8, wasm: []const u8, egress: []const []const u8, user_agent: []const u8, config: struct { feed: []const u8, source: []const u8, endpoint: []const u8, poll_ms: i64 } };
+    const Grant = struct { origin: []const u8, private: bool, headers: struct { @"user-agent": []const u8 } };
+    const Mirror = struct { name: []const u8, wasm: []const u8, egress: [1]Grant, config: struct { feed: []const u8, source: []const u8, endpoint: []const u8, poll_ms: i64 } };
     const mirror = struct {
         fn of(wasm: []const u8, endpoint_: []const u8, comptime rkey: []const u8, comptime source: []const u8, poll_ms: i64) Mirror {
-            return .{ .name = "feed:" ++ rkey, .wasm = wasm, .egress = &.{"127.0.0.1"}, .user_agent = user_agent, .config = .{
+            return .{ .name = "feed:" ++ rkey, .wasm = wasm, .egress = .{.{ .origin = endpoint_, .private = true, .headers = .{ .@"user-agent" = user_agent } }}, .config = .{
                 .feed = mirrorUri(rkey),
                 .source = graze_source ++ source,
                 .endpoint = endpoint_,
@@ -369,7 +370,7 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
         },
         .routes = .{.{ .prefix = "/", .cell = "feed:front" }},
     }} });
-    const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture, "--dev-loopback-egress" };
+    const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture };
     var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/full.log", .{dir}));
     defer server.stop(io);
     const base = server.base;
