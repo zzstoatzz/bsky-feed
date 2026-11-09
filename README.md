@@ -25,7 +25,7 @@ curl localhost:8080/                    # the feed directory
 
 ## design
 
-- **the app owns its deploy, zeldi owns the runtime** — cells build against zeldi's sdk as a zig dependency, and this repo ships the zeldi binary with its own app config.
+- **the app owns its cells, cellar owns the host** — cells build against zeldi's sdk as a zig dependency; [cellar](https://tangled.org/zzstoatzz.io/cellar) runs them from a pinned commit of this repo, with its zeldi.json.
 - **one cell per feed, one front cell for the generator** — each feed keeps its own sqlite and sees one event at a time; the front answers the did document, describeFeedGenerator and the directory, and routes skeleton requests by feed uri.
 - **the machine holds no account credentials** — serving a feed is a public read; the app password that writes feed records stays on the laptop.
 
@@ -34,12 +34,11 @@ curl localhost:8080/                    # the feed directory
 ```sh
 zig build test                          # filter parity with the python version, and the e2e on the fixture
 zig build e2e                           # just the e2e: paging, restart resume, 64 cells, the front
-fly deploy --remote-only                # build on fly's builder and roll the one machine
 ```
 
 ## docs
 
-the [docs](https://github.com/zzstoatzz/bsky-feed/tree/main/docs) directory holds the deploy, its secrets, and how feed records get published.
+the [docs](https://github.com/zzstoatzz/bsky-feed/tree/main/docs) directory holds how a change reaches cellar, the secrets, and how feed records get published.
 
 ## license
 
