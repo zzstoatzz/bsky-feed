@@ -11,9 +11,8 @@ pub fn build(b: *std.Build) void {
 
     const spongebob = zeldi_build.addCell(b, zeldi, "spongebob", b.path("cells/main.zig"));
     const front = zeldi_build.addCell(b, zeldi, "feeds-front", b.path("cells/front.zig"));
-    const mirror = zeldi_build.addCell(b, zeldi, "feeds-mirror", b.path("cells/mirror.zig"));
     const cells_step = b.step("cells", "build the cells");
-    for ([_]struct { []const u8, std.Build.LazyPath }{ .{ "spongebob", spongebob }, .{ "feeds-front", front }, .{ "feeds-mirror", mirror } }) |cell| {
+    for ([_]struct { []const u8, std.Build.LazyPath }{ .{ "spongebob", spongebob }, .{ "feeds-front", front } }) |cell| {
         const install = b.addInstallFileWithDir(cell[1], .{ .custom = "cells" }, b.fmt("{s}.wasm", .{cell[0]}));
         cells_step.dependOn(&install.step);
         b.getInstallStep().dependOn(&install.step);
@@ -37,8 +36,6 @@ pub fn build(b: *std.Build) void {
     run_e2e.addFileArg(spongebob);
     run_e2e.addFileArg(b.path("testdata/jetstream.ndjson"));
     run_e2e.addFileArg(front);
-    run_e2e.addFileArg(mirror);
-    run_e2e.addDirectoryArg(b.path("testdata/graze"));
     test_step.dependOn(&run_e2e.step);
     b.step("e2e", "boot zeldi with the feeds on the jetstream fixture").dependOn(&run_e2e.step);
 }

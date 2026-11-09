@@ -16,18 +16,6 @@
               {
                 "uri": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/n8",
                 "cell": "feed:spongebob"
-              },
-              {
-                "uri": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-desk",
-                "cell": "feed:live-desk"
-              },
-              {
-                "uri": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-natl",
-                "cell": "feed:live-natl"
-              },
-              {
-                "uri": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-mi",
-                "cell": "feed:live-mi"
               }
             ]
           }
@@ -46,54 +34,6 @@
             "feeds": [
               "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/n8"
             ]
-          }
-        },
-        {
-          "name": "feed:live-desk",
-          "wasm": "zig-out/cells/feeds-mirror.wasm",
-          "egress": [
-            {
-              "origin": "https://api.graze.social",
-              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
-            }
-          ],
-          "config": {
-            "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-desk",
-            "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/desk-natl",
-            "endpoint": "https://api.graze.social",
-            "poll_ms": 30000
-          }
-        },
-        {
-          "name": "feed:live-natl",
-          "wasm": "zig-out/cells/feeds-mirror.wasm",
-          "egress": [
-            {
-              "origin": "https://api.graze.social",
-              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
-            }
-          ],
-          "config": {
-            "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-natl",
-            "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/races-natl",
-            "endpoint": "https://api.graze.social",
-            "poll_ms": 30000
-          }
-        },
-        {
-          "name": "feed:live-mi",
-          "wasm": "zig-out/cells/feeds-mirror.wasm",
-          "egress": [
-            {
-              "origin": "https://api.graze.social",
-              "headers": { "user-agent": "zeldi feeds (+https://feed.zzstoatzz.io)" }
-            }
-          ],
-          "config": {
-            "feed": "at://did:plc:xbtmt2zjwlrfegqvch7fboei/app.bsky.feed.generator/live-mi",
-            "source": "at://did:plc:i6y3jdklpvkjvynvsrnqfdoq/app.bsky.feed.generator/races-mi",
-            "endpoint": "https://api.graze.social",
-            "poll_ms": 60000
           }
         }
       ],

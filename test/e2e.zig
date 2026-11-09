@@ -1,10 +1,9 @@
 //! boots `zeldi dev` with the spongebob cell on the jetstream fixture, then
 //! pages through the feed over http, restarts the process, and checks the cell
 //! kept its posts and its cursor. then puts spongebob behind the front cell
-//! and checks every response it gave alone comes back the same, and that mirror
-//! cells fill from a local stand-in for their source.
+//! and checks every response it gave alone comes back the same.
 //!
-//! usage: e2e <zeldi> <spongebob.wasm> <fixture.ndjson> <front.wasm> <mirror.wasm> <graze testdata dir>
+//! usage: e2e <zeldi> <spongebob.wasm> <fixture.ndjson> <front.wasm>
 
 const std = @import("std");
 const Io = std.Io;
@@ -34,7 +33,7 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const arena = init.arena.allocator();
     const args = try init.minimal.args.toSlice(arena);
-    if (args.len != 7) return error.Usage;
+    if (args.len != 5) return error.Usage;
     // zig build sets NO_COLOR for a run step, and with it zeldi's log never
     // asks whether stderr is a tty; deployed, it does, under the jail.
     var environ = try init.environ_map.clone(arena);
@@ -42,7 +41,7 @@ pub fn main(init: std.process.Init) !void {
     _ = environ.swapRemove("CLICOLOR_FORCE");
     harness.environ = &environ;
     const zeldi, const wasm, const base_fixture = .{ args[1], args[2], args[3] };
-    const front_wasm, const mirror_wasm, const graze_dir = .{ args[4], args[5], args[6] };
+    const front_wasm = args[4];
 
     const dir = try harness.tempDir(io, arena, "feeds-e2e");
     defer Io.Dir.cwd().deleteTree(io, dir) catch {};
@@ -96,8 +95,8 @@ pub fn main(init: std.process.Init) !void {
         }
     }
     try manyCells(io, &client, arena, dir, wasm, fixture, zeldi);
-    try frontDoor(io, &client, arena, dir, zeldi, .{ .spongebob = wasm, .front = front_wasm, .mirror = mirror_wasm }, graze_dir, fixture);
-    std.debug.print("feeds e2e ok: {d} posts paged twice, cursor resumed after restart, {d} cells in one process, spongebob unchanged behind the front, mirrors filled and backed off\n", .{ expected.len, many_cells });
+    try frontDoor(io, &client, arena, dir, zeldi, .{ .spongebob = wasm, .front = front_wasm }, fixture);
+    std.debug.print("feeds e2e ok: {d} posts paged twice, cursor resumed after restart, {d} cells in one process, spongebob unchanged behind the front\n", .{ expected.len, many_cells });
 }
 
 const cell_config = .{ .hostname = "smoke.test", .feeds = .{feed_uri} };
@@ -282,16 +281,9 @@ fn expectSame(paths: []const []const u8, want: []const Seen, got: []const Seen) 
     }
 }
 
-const mirror_did = "did:plc:smoke";
-fn mirrorUri(comptime rkey: []const u8) []const u8 {
-    return "at://" ++ mirror_did ++ "/app.bsky.feed.generator/" ++ rkey;
-}
-const graze_source = "at://did:plc:graze/app.bsky.feed.generator/";
-const user_agent = "feeds-e2e (+https://smoke.test)";
 
-/// spongebob behind a front cell, on the same sqlite it used alone, then
-/// joined by mirror cells that poll a local stand-in for the source feeds.
-fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []const u8, zeldi: []const u8, wasms: struct { spongebob: []const u8, front: []const u8, mirror: []const u8 }, graze_dir: []const u8, fixture: []const u8) !void {
+/// spongebob behind a front cell, on the same data it used alone.
+fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []const u8, zeldi: []const u8, wasms: struct { spongebob: []const u8, front: []const u8 }, fixture: []const u8) !void {
     const data = try std.fmt.allocPrint(arena, "{s}/front-data", .{dir});
     const spongebob = .{ .name = "feed:spongebob", .wasm = wasms.spongebob, .egress = jetstreams, .config = cell_config };
 
@@ -331,214 +323,4 @@ fn frontDoor(io: Io, client: *std.http.Client, arena: std.mem.Allocator, dir: []
         try waitReady(io, client, arena, server.operator);
         try expectSame(&all_paths, before, try seeAll(client, arena, base, &all_paths));
     }
-
-    const graze_addr = try Io.net.IpAddress.parseIp4("127.0.0.1", 0);
-    var graze = try graze_addr.listen(io, .{});
-    defer graze.deinit(io);
-    var stand_in: Graze = .{ .io = io, .arena = arena, .dir = graze_dir };
-    var serving = try io.concurrent(Graze.serve, .{ &stand_in, &graze });
-    defer serving.cancel(io) catch {};
-    const endpoint = try std.fmt.allocPrint(arena, "http://127.0.0.1:{d}", .{graze.socket.address.getPort()});
-
-    const config = try std.fmt.allocPrint(arena, "{s}/full.json", .{dir});
-    const Grant = struct { origin: []const u8, private: bool, headers: struct { @"user-agent": []const u8 } };
-    const Mirror = struct { name: []const u8, wasm: []const u8, egress: [1]Grant, config: struct { feed: []const u8, source: []const u8, endpoint: []const u8, poll_ms: i64 } };
-    const mirror = struct {
-        fn of(wasm: []const u8, endpoint_: []const u8, comptime rkey: []const u8, comptime source: []const u8, poll_ms: i64) Mirror {
-            return .{ .name = "feed:" ++ rkey, .wasm = wasm, .egress = .{.{ .origin = endpoint_, .private = true, .headers = .{ .@"user-agent" = user_agent } }}, .config = .{
-                .feed = mirrorUri(rkey),
-                .source = graze_source ++ source,
-                .endpoint = endpoint_,
-                .poll_ms = poll_ms,
-            } };
-        }
-    }.of;
-    try harness.writeJson(io, arena, config, .{ .tenants = .{.{
-        .name = "feeds",
-        .hosts = .{"*"},
-        .cells = .{
-            .{ .name = "feed:front", .wasm = wasms.front, .config = .{ .hostname = "smoke.test", .feeds = .{
-                .{ .uri = feed_uri, .cell = "feed:spongebob" },
-                .{ .uri = mirrorUri("live-mi"), .cell = "feed:live-mi" },
-                .{ .uri = mirrorUri("live-desk"), .cell = "feed:live-desk" },
-                .{ .uri = mirrorUri("live-busy"), .cell = "feed:live-busy" },
-            } } },
-            spongebob,
-            mirror(wasms.mirror, endpoint, "live-mi", "races-mi", 300),
-            mirror(wasms.mirror, endpoint, "live-desk", "desk-natl", 300),
-            mirror(wasms.mirror, endpoint, "live-busy", "busy", 100),
-        },
-        .routes = .{.{ .prefix = "/", .cell = "feed:front" }},
-    }} });
-    const argv = [_][]const u8{ zeldi, "dev", "--config", config, "--data", data, "--fixture", fixture };
-    var server = try Server.start(io, arena, &argv, try std.fmt.allocPrint(arena, "{s}/full.log", .{dir}));
-    defer server.stop(io);
-    const base = server.base;
-    try waitReady(io, client, arena, server.operator);
-    try expectSame(&unchanged_paths, before[0..unchanged_paths.len], try seeAll(client, arena, base, &unchanged_paths));
-
-    _, const described = try get(client, arena, try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.describeFeedGenerator", .{base}));
-    const Described = struct { did: []const u8, feeds: []const struct { uri: []const u8 } };
-    const d = try std.json.parseFromSliceLeaky(Described, arena, described, .{});
-    if (!std.mem.eql(u8, d.did, "did:web:smoke.test") or d.feeds.len != 4 or !std.mem.eql(u8, d.feeds[0].uri, feed_uri) or !std.mem.eql(u8, d.feeds[1].uri, mirrorUri("live-mi"))) {
-        std.debug.print("describe lists the wrong feeds: {s}\n", .{described});
-        return error.WrongDescribe;
-    }
-    _, const page = try get(client, arena, try std.fmt.allocPrint(arena, "{s}/", .{base}));
-    for ([_][]const u8{ "/feed/sponge\"", "/feed/live-mi\"", "/feed/live-desk\"" }) |link| {
-        if (std.mem.indexOf(u8, page, link) == null) {
-            std.debug.print("directory does not link {s}\n", .{link});
-            return error.WrongDirectory;
-        }
-    }
-
-    const mi = try mirroredFeed(io, client, arena, base, mirrorUri("live-mi"), 160);
-    try expectPosts(mi, &.{ try stand_in.posts("races-mi-1.json"), try stand_in.posts("races-mi-2.json") });
-    const desk = try mirroredFeed(io, client, arena, base, mirrorUri("live-desk"), 76);
-    try expectPosts(desk, &.{try stand_in.posts("desk-natl-1.json")});
-    try harness.expectStatus(client, arena, try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.getFeedSkeleton?feed=at%3A%2F%2Fdid%3Aplc%3Asmoke%2Fapp.bsky.feed.generator%2Flive-mi&cursor=x", .{base}), .bad_request);
-
-    // a few more polls: page 1 every time, page 2 only on the first, when
-    // everything on page 1 was new.
-    try io.sleep(Io.Duration.fromMilliseconds(1_500), .awake);
-    const h = stand_in.snapshot();
-    if (h.mi_first < 3 or h.mi_second != 1 or h.desk_second != 1) {
-        std.debug.print("live-mi polled page 1 {d} times and page 2 {d} times; live-desk page 2 {d} times\n", .{ h.mi_first, h.mi_second, h.desk_second });
-        return error.WrongPolling;
-    }
-    // live-busy polls every 100ms but its source answers 503, so it backs off.
-    if (h.busy < 2 or h.busy > 6) {
-        std.debug.print("live-busy hit a failing source {d} times in about 2s\n", .{h.busy});
-        return error.NoBackoff;
-    }
-    if (h.wrong_agent) return error.WrongUserAgent;
 }
-
-fn mirroredFeed(io: Io, client: *std.http.Client, arena: std.mem.Allocator, base: []const u8, uri: []const u8, want: usize) ![]const []const u8 {
-    var encoded: std.Io.Writer.Allocating = .init(arena);
-    try std.Uri.Component.percentEncode(&encoded.writer, uri, isUnreserved);
-    var tries: usize = 0;
-    while (true) : (tries += 1) {
-        var posts: std.ArrayList([]const u8) = .empty;
-        var cursor: ?[]const u8 = null;
-        while (true) {
-            const url = if (cursor) |cur|
-                try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.getFeedSkeleton?feed={s}&limit=100&cursor={s}", .{ base, encoded.written(), cur })
-            else
-                try std.fmt.allocPrint(arena, "{s}/xrpc/app.bsky.feed.getFeedSkeleton?feed={s}&limit=100", .{ base, encoded.written() });
-            const status, const body = try get(client, arena, url);
-            if (status != .ok) {
-                std.debug.print("{s}: {d} {s}\n", .{ url, @backingInt(status), body });
-                return error.UnexpectedStatus;
-            }
-            const page = try std.json.parseFromSliceLeaky(Skeleton, arena, body, .{});
-            for (page.feed) |item| try posts.append(arena, item.post);
-            if (std.mem.eql(u8, page.cursor, "eof")) break;
-            cursor = page.cursor;
-        }
-        if (posts.items.len >= want or tries >= 100) return posts.items;
-        try io.sleep(Io.Duration.fromMilliseconds(50), .awake);
-    }
-}
-
-fn expectPosts(got: []const []const u8, pages: []const []const []const u8) !void {
-    var i: usize = 0;
-    for (pages) |page| for (page) |want| {
-        if (i >= got.len or !std.mem.eql(u8, got[i], want)) {
-            std.debug.print("post {d}: got {s}, want {s}\n", .{ i, if (i < got.len) got[i] else "nothing", want });
-            return error.WrongMirror;
-        }
-        i += 1;
-    };
-    if (i != got.len) {
-        std.debug.print("got {d} posts, want {d}\n", .{ got.len, i });
-        return error.WrongMirror;
-    }
-}
-
-fn isUnreserved(c: u8) bool {
-    return std.ascii.isAlphanumeric(c) or c == '-' or c == '.' or c == '_' or c == '~';
-}
-
-/// a stand-in for the source generator, answering getFeedSkeleton from the
-/// recorded pages: races-mi has two, desk-natl one, and busy always fails.
-const Graze = struct {
-    io: Io,
-    arena: std.mem.Allocator,
-    dir: []const u8,
-    mutex: Io.Mutex = .init,
-    hits: Hits = .{},
-
-    const Hits = struct { mi_first: u32 = 0, mi_second: u32 = 0, desk_second: u32 = 0, busy: u32 = 0, wrong_agent: bool = false };
-
-    fn snapshot(g: *Graze) Hits {
-        g.mutex.lockUncancelable(g.io);
-        defer g.mutex.unlock(g.io);
-        return g.hits;
-    }
-
-    fn posts(g: *Graze, name: []const u8) ![]const []const u8 {
-        const bytes = try Io.Dir.cwd().readFileAlloc(g.io, try std.fs.path.join(g.arena, &.{ g.dir, name }), g.arena, .limited(1 << 20));
-        const page = try std.json.parseFromSliceLeaky(struct { feed: []const struct { post: []const u8 } }, g.arena, bytes, .{ .ignore_unknown_fields = true });
-        const out = try g.arena.alloc([]const u8, page.feed.len);
-        for (page.feed, out) |item, *p| p.* = item.post;
-        return out;
-    }
-
-    fn serve(g: *Graze, server: *Io.net.Server) !void {
-        var group: Io.Group = .init;
-        defer group.cancel(g.io);
-        while (true) {
-            const stream = try server.accept(g.io);
-            group.concurrent(g.io, connection, .{ g, stream }) catch stream.close(g.io);
-        }
-    }
-
-    fn connection(g: *Graze, stream: Io.net.Stream) void {
-        defer stream.close(g.io);
-        g.answer(stream) catch {};
-    }
-
-    fn answer(g: *Graze, stream: Io.net.Stream) !void {
-        var recv_buf: [4096]u8 = undefined;
-        var send_buf: [4096]u8 = undefined;
-        var reader = stream.reader(g.io, &recv_buf);
-        var writer = stream.writer(g.io, &send_buf);
-        var http_server = std.http.Server.init(&reader.interface, &writer.interface);
-        while (true) {
-            var request = http_server.receiveHead() catch return;
-            const target = request.head.target;
-            var agent: []const u8 = "";
-            var it = request.iterateHeaders();
-            while (it.next()) |h| if (std.ascii.eqlIgnoreCase(h.name, "user-agent")) {
-                agent = h.value;
-            };
-            const paged = std.mem.indexOf(u8, target, "&cursor=") != null;
-            const file: ?[]const u8 = blk: {
-                g.mutex.lockUncancelable(g.io);
-                defer g.mutex.unlock(g.io);
-                if (!std.mem.eql(u8, agent, user_agent)) g.hits.wrong_agent = true;
-                if (std.mem.indexOf(u8, target, "races-mi") != null) {
-                    if (paged) g.hits.mi_second += 1 else g.hits.mi_first += 1;
-                    break :blk if (paged) "races-mi-2.json" else "races-mi-1.json";
-                }
-                if (std.mem.indexOf(u8, target, "desk-natl") != null) {
-                    if (paged) g.hits.desk_second += 1;
-                    break :blk if (paged) null else "desk-natl-1.json";
-                }
-                g.hits.busy += 1;
-                break :blk null;
-            };
-            const json: std.http.Header = .{ .name = "content-type", .value = "application/json" };
-            if (file) |name| {
-                const body = try Io.Dir.cwd().readFileAlloc(g.io, try std.fs.path.join(g.arena, &.{ g.dir, name }), std.heap.page_allocator, .limited(1 << 20));
-                defer std.heap.page_allocator.free(body);
-                try request.respond(body, .{ .extra_headers = &.{json} });
-            } else if (paged) {
-                try request.respond("{\"feed\":[]}", .{ .extra_headers = &.{json} });
-            } else {
-                try request.respond("busy", .{ .status = .service_unavailable });
-            }
-        }
-    }
-};

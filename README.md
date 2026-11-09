@@ -1,6 +1,6 @@
 # bsky-feed
 
-my bluesky feeds, served as cells on [zeldi](https://tangled.org/zzstoatzz.io/zeldi): the spongebob feed (alternating-case posts from jetstream) and mirrors of [graze](https://graze.social)'s midterms feeds, behind one feed generator. this repo began as a python feed generator built on [MarshalX's template](https://github.com/MarshalX/bluesky-feed-generator); that version is in the history.
+my bluesky feeds, served as cells on [zeldi](https://tangled.org/zzstoatzz.io/zeldi): the spongebob feed (alternating-case posts from jetstream), behind one feed generator. this repo began as a python feed generator built on [MarshalX's template](https://github.com/MarshalX/bluesky-feed-generator); that version is in the history.
 
 **live:** [feed.zzstoatzz.io](https://feed.zzstoatzz.io)
 
@@ -33,7 +33,7 @@ curl localhost:8080/                    # the feed directory
 
 ```sh
 zig build test                          # filter parity with the python version, and the e2e on the fixture
-zig build e2e                           # just the e2e: paging, restart resume, 64 cells, the front, the mirrors
+zig build e2e                           # just the e2e: paging, restart resume, 64 cells, the front
 fly deploy --remote-only                # build on fly's builder and roll the one machine
 ```
 
