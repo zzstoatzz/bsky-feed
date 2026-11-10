@@ -125,7 +125,8 @@ fn expectGenerator(client: *std.http.Client, arena: std.mem.Allocator, base: []c
     if (!std.mem.eql(u8, d.did, "did:web:smoke.test") or d.feeds.len != 1 or !std.mem.eql(u8, d.feeds[0].uri, feed_uri)) return error.WrongDescribe;
 }
 
-/// the fixture batch is delivered asynchronously, so poll until it lands.
+/// the fixture batch is delivered asynchronously, and requests run between
+/// its chunks, so poll until the whole batch has landed.
 fn pageAll(client: *std.http.Client, arena: std.mem.Allocator, base: []const u8, limit: u32) ![]const []const u8 {
     var posts: std.ArrayList([]const u8) = .empty;
     var tries: usize = 0;
@@ -150,9 +151,15 @@ fn pageAll(client: *std.http.Client, arena: std.mem.Allocator, base: []const u8,
             if (std.mem.eql(u8, page.cursor, "eof")) break;
             cursor = page.cursor;
         }
-        if (posts.items.len >= expected.len or tries >= 100) return posts.items;
+        if (matches(posts.items) or tries >= 100) return posts.items;
         try client.io.sleep(Io.Duration.fromMilliseconds(50), .awake);
     }
+}
+
+fn matches(posts: []const []const u8) bool {
+    if (posts.len != expected.len) return false;
+    for (expected, posts) |want, got| if (!std.mem.eql(u8, want, got)) return false;
+    return true;
 }
 
 fn expectFeed(posts: []const []const u8) !void {
